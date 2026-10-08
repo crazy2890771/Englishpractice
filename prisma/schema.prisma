@@ -1,0 +1,283 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Mode {
+  SPEAKING
+  LISTENING
+  WRITING
+  SHADOWING
+  REVIEW
+  ROLEPLAY
+  ASSESSMENT
+}
+
+enum MistakeCategory {
+  GRAMMAR
+  VOCABULARY
+  PRONUNCIATION
+  EXPRESSION
+}
+
+enum AssessmentKind {
+  BASELINE
+  FINAL
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  isDemo       Boolean  @default(false)
+  level        String   @default("B1")
+  onboarded    Boolean  @default(false)
+  goal         String?
+  startDate    DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  sessions      Session[]
+  settings      UserSettings?
+  lessons       LessonProgress[]
+  attempts      ExerciseAttempt[]
+  conversations Conversation[]
+  writings      WritingSubmission[]
+  mistakes      Mistake[]
+  vocabulary    VocabularyItem[]
+  recordings    Recording[]
+  assessments   Assessment[]
+  usage         AiUsage[]
+  studyDays     StudyDay[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UserSettings {
+  userId                 String   @id
+  theme                  String   @default("dark")
+  speechRate             Float    @default(1.0)
+  accent                 String   @default("US")
+  llmProvider            String   @default("auto")
+  sttProvider            String   @default("auto")
+  ttsProvider            String   @default("auto")
+  saveRecordings         Boolean  @default(false)
+  recordingRetentionDays Int      @default(30)
+  interruptionFree       Boolean  @default(false)
+  dailyAiRequestLimit    Int      @default(200)
+  monthlyCostLimitCents  Int      @default(500)
+  updatedAt              DateTime @updatedAt
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LessonProgress {
+  id             String    @id @default(cuid())
+  userId         String
+  day            Int
+  status         String    @default("not_started") // not_started | in_progress | completed
+  completedSteps String[]  @default([])
+  stepData       Json      @default("{}")
+  secondsSpent   Int       @default(0)
+  startedAt      DateTime?
+  completedAt    DateTime?
+  updatedAt      DateTime  @updatedAt
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, day])
+}
+
+model ExerciseAttempt {
+  id          String   @id @default(cuid())
+  userId      String
+  day         Int?
+  mode        Mode
+  exerciseId  String
+  score       Float?
+  maxScore    Float?
+  data        Json     @default("{}")
+  durationSec Int      @default(0)
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, mode, createdAt])
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  userId    String
+  mode      Mode
+  topic     String
+  day       Int?
+  status    String    @default("active") // active | ended
+  live      Boolean   @default(false)
+  summary   Json?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  messages  Message[]
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  role           String // user | assistant
+  content        String
+  feedback       Json?
+  recordingId    String?
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+model WritingSubmission {
+  id        String   @id @default(cuid())
+  userId    String
+  day       Int?
+  promptId  String
+  prompt    String
+  text      String
+  corrected String
+  natural   String
+  feedback  Json
+  scores    Json
+  live      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Mistake {
+  id             String          @id @default(cuid())
+  userId         String
+  sourceMode     Mode
+  category       MistakeCategory
+  original       String
+  corrected      String
+  natural        String?
+  explanation    String
+  occurrences    Int             @default(1)
+  easeFactor     Float           @default(2.5)
+  intervalDays   Int             @default(0)
+  repetitions    Int             @default(0)
+  successStreak  Int             @default(0)
+  dueAt          DateTime        @default(now())
+  mastered       Boolean         @default(false)
+  lastReviewedAt DateTime?
+  createdAt      DateTime        @default(now())
+  reviews        MistakeReview[]
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, original, corrected])
+  @@index([userId, dueAt])
+}
+
+model MistakeReview {
+  id        String   @id @default(cuid())
+  mistakeId String
+  correct   Boolean
+  quality   Int
+  answer    String?
+  createdAt DateTime @default(now())
+  mistake   Mistake  @relation(fields: [mistakeId], references: [id], onDelete: Cascade)
+}
+
+model VocabularyItem {
+  id             String    @id @default(cuid())
+  userId         String
+  word           String
+  definition     String
+  example        String
+  day            Int?
+  easeFactor     Float     @default(2.5)
+  intervalDays   Int       @default(0)
+  repetitions    Int       @default(0)
+  successStreak  Int       @default(0)
+  dueAt          DateTime  @default(now())
+  mastered       Boolean   @default(false)
+  reviewCount    Int       @default(0)
+  lastReviewedAt DateTime?
+  createdAt      DateTime  @default(now())
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, word])
+  @@index([userId, dueAt])
+}
+
+model Recording {
+  id         String   @id @default(cuid())
+  userId     String
+  mode       Mode
+  mimeType   String
+  data       Bytes
+  sizeBytes  Int
+  durationMs Int?
+  transcript String?
+  label      String?
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Assessment {
+  id          String         @id @default(cuid())
+  userId      String
+  kind        AssessmentKind
+  version     String
+  responses   Json
+  scores      Json
+  overall     Float
+  level       String
+  live        Boolean        @default(false)
+  completedAt DateTime       @default(now())
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind])
+}
+
+model AiUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  kind      String // llm | stt | tts
+  provider  String
+  units     Int      @default(0)
+  costCents Float    @default(0)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model StudyDay {
+  userId  String
+  date    String // YYYY-MM-DD (user local date)
+  seconds Int    @default(0)
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, date])
+}
+
+model TtsCache {
+  key       String   @id // sha256(provider|voice|speed|text)
+  mimeType  String
+  data      Bytes
+  createdAt DateTime @default(now())
+}
