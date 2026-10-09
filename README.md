@@ -105,7 +105,7 @@ src/
     srs.ts progress.ts analytics.ts usage.ts rate-limit.ts auth.ts …
 prisma/                  schema, migrations, seed
 tests/unit               Vitest (rules, scoring, SRS, diffing, curriculum integrity, demo engine)
-tests/e2e                Playwright (all pages × desktop/iPad/iPhone, full Day 1 lesson, assessment)
+tests/e2e                Playwright (all pages × desktop/iPad/iPhone, full Day 1 lesson, assessment, offline → sync)
 ```
 
 **AI feedback engine.** Every eligible speaking/writing response yields: original, corrected, more natural version, categorised items with brief explanations, suggested vocabulary, a follow-up exercise and rubric scores (grammar, vocabulary, fluency/clarity/coherence, task completion; bands 1–5). Model output is parsed and validated with Zod; invalid output triggers one automatic repair request, then a clear error. The same rubric text is embedded in every prompt and shown in the UI (“How scores work”). Scores are labelled as estimates — **not certified CEFR or pronunciation assessments**.
@@ -116,7 +116,15 @@ tests/e2e                Playwright (all pages × desktop/iPad/iPhone, full Day 
 
 **Security & cost.** Server-side sessions (random token, SHA-256-hashed in DB, httpOnly cookie), bcrypt passwords, Zod validation on every input, ownership checks on every record, per-user burst rate limiting, daily request caps and monthly cost budgets (server caps; users can only lower them), security headers, and a microphone-only `Permissions-Policy`.
 
-**PWA.** Installable (manifest + icons). The service worker caches static assets and previously visited pages/read-only API responses; offline you get cached lessons and saved writing drafts. AI, STT and TTS require a connection.
+**PWA & offline.** Installable (manifest + icons). **Settings → Offline use** (or the Calendar page) has a *Download for offline* button that pre-caches the open lessons, the practice pages with all 60 listening exercises, flashcards and the mistake-review queue, plus the JS/CSS they need.
+
+Offline you can:
+- open downloaded lessons and practice pages (including in-app navigation);
+- do listening exercises, which are graded **on the device** with the same grader the server uses;
+- review flashcards and mistakes, with mistake corrections checked on the device;
+- keep writing drafts, which are saved locally.
+
+This work goes into a local **outbox** (`src/lib/client/outbox.ts`) and syncs automatically when the connection returns. Each item carries a `clientId`, so retries never double-count, and an `occurredAt` time, so streaks and spaced-repetition dates stay correct. After syncing, the lesson steps are re-verified on the server. Speaking, AI feedback, speech recognition and lesson unlocking still need a connection. On iPhone, offline data is kept most reliably when the app is added to the Home Screen.
 
 ---
 

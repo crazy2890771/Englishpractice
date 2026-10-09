@@ -4,12 +4,14 @@ import { db } from "@/lib/db";
 import { ApiError, parseBody, withUser } from "@/lib/api";
 import { review } from "@/lib/srs";
 import { answersMatch } from "@/lib/text";
+import { findSynced, occurredAt, syncFields } from "@/lib/offline-sync";
 
 const schema = z.object({
   /** Typed correction (correction exercise). If omitted, `quality` from a flashcard self-rating is used. */
   answer: z.string().max(400).optional(),
   quality: z.number().int().min(0).max(5).optional(),
   day: z.number().int().min(1).max(30).optional(),
+  ...syncFields,
 });
 
 export const POST = withUser<{ id: string }>(async (req, user, { params }) => {
@@ -17,6 +19,9 @@ export const POST = withUser<{ id: string }>(async (req, user, { params }) => {
   const body = await parseBody(req, schema);
   const m = await db.mistake.findFirst({ where: { id, userId: user.id } });
   if (!m) throw new ApiError(404, "Mistake not found.");
+  const synced = await findSynced(user.id, body.clientId);
+  if (synced) return NextResponse.json({ correct: synced.score === 1, expected: m.corrected, mistake: m, duplicate: true });
+  const when = occurredAt(body.occurredAt);
 
   let correct: boolean;
   let quality: number;
@@ -27,13 +32,13 @@ export const POST = withUser<{ id: string }>(async (req, user, { params }) => {
     quality = body.quality ?? 0;
     correct = quality >= 3;
   }
-  const next = review(m, quality);
+  const next = review(m, quality, when);
   const updated = await db.mistake.update({
     where: { id: m.id },
-    data: { ...next, lastReviewedAt: new Date(), reviews: { create: { correct, quality, answer: body.answer } } },
+    data: { ...next, lastReviewedAt: when, reviews: { create: { correct, quality, answer: body.answer, createdAt: when } } },
   });
   await db.exerciseAttempt.create({
-    data: { userId: user.id, day: body.day ?? null, mode: "REVIEW", exerciseId: `mistake:${m.id}`, score: correct ? 1 : 0, maxScore: 1 },
+    data: { userId: user.id, day: body.day ?? null, mode: "REVIEW", exerciseId: `mistake:${m.id}`, score: correct ? 1 : 0, maxScore: 1, clientId: body.clientId, createdAt: when },
   });
   return NextResponse.json({ correct, expected: m.corrected, mistake: updated });
 });

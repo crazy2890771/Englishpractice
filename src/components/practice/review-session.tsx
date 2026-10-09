@@ -3,6 +3,9 @@ import clsx from "clsx";
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, RotateCcw, XCircle } from "lucide-react";
 import { api, errorMessage } from "@/lib/client/api";
+import { isOfflineError, pendingReviewIds, postOrQueue } from "@/lib/client/outbox";
+import { answersMatch } from "@/lib/text";
+import { useAppConfig } from "../providers";
 import { Badge, EmptyState, ErrorBanner, ProgressBar, Spinner } from "../ui";
 import { CategoryBadge } from "./feedback-view";
 
@@ -34,14 +37,18 @@ export function ReviewSession({ day, onReviewed, filter = "all" }: { day?: numbe
   const [revealed, setRevealed] = useState(false);
   const [checked, setChecked] = useState<{ correct: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [offlineCount, setOfflineCount] = useState(0);
+  const { user } = useAppConfig();
 
   const load = useCallback(async () => {
     setError(null);
     setQueue(null);
     try {
+      // Offline, the service worker serves the last downloaded queue; hide items already rated offline.
       const q = await api<{ mistakes: MistakeCard[]; vocab: VocabCard[] }>("/api/review/queue");
-      const m: Card[] = filter === "vocab" ? [] : q.mistakes.map((item) => ({ kind: "mistake", item }));
-      const v: Card[] = filter === "mistakes" ? [] : q.vocab.map((item) => ({ kind: "vocab", item }));
+      const pending = pendingReviewIds(user.id);
+      const m: Card[] = filter === "vocab" ? [] : q.mistakes.filter((x) => !pending.has(x.id)).map((item) => ({ kind: "mistake", item }));
+      const v: Card[] = filter === "mistakes" ? [] : q.vocab.filter((x) => !pending.has(x.id)).map((item) => ({ kind: "vocab", item }));
       const mixed: Card[] = [];
       while (m.length || v.length) {
         if (m.length) mixed.push(m.shift()!);
@@ -50,9 +57,13 @@ export function ReviewSession({ day, onReviewed, filter = "all" }: { day?: numbe
       setQueue(mixed);
       setI(0);
     } catch (e) {
-      setError(errorMessage(e));
+      setError(
+        isOfflineError(e)
+          ? "You're offline and your review queue hasn't been downloaded yet. Use “Download for offline” in Settings next time you're online."
+          : errorMessage(e),
+      );
     }
-  }, [filter]);
+  }, [filter, user.id]);
 
   useEffect(() => void load(), [load]);
 
@@ -70,8 +81,11 @@ export function ReviewSession({ day, onReviewed, filter = "all" }: { day?: numbe
   async function checkMistake(card: MistakeCard) {
     setBusy(true);
     try {
-      const r = await api<{ correct: boolean }>(`/api/review/mistake/${card.id}`, { body: { answer, day } });
-      setChecked(r);
+      const out = await postOrQueue<{ correct: boolean }>(user.id, `/api/review/mistake/${card.id}`, { answer, day }, day ? { day, step: "review" } : undefined);
+      // Offline: check on the device with the same matching rule the server uses.
+      const correct = out.queued ? answersMatch(answer, card.corrected, card.natural ? [card.natural] : []) : out.data.correct;
+      if (out.queued) setOfflineCount((n) => n + 1);
+      setChecked({ correct });
       setRevealed(true);
     } catch (e) {
       setError(errorMessage(e));
@@ -83,8 +97,9 @@ export function ReviewSession({ day, onReviewed, filter = "all" }: { day?: numbe
   async function rate(card: Card, quality: number) {
     setBusy(true);
     try {
-      if (card.kind === "vocab") await api(`/api/review/vocab/${card.item.id}`, { body: { quality, day } });
-      else await api(`/api/review/mistake/${card.item.id}`, { body: { quality, day } });
+      const url = card.kind === "vocab" ? `/api/review/vocab/${card.item.id}` : `/api/review/mistake/${card.item.id}`;
+      const out = await postOrQueue(user.id, url, { quality, day }, day ? { day, step: "review" } : undefined);
+      if (out.queued) setOfflineCount((n) => n + 1);
       next();
     } catch (e) {
       setError(errorMessage(e));
@@ -110,6 +125,11 @@ export function ReviewSession({ day, onReviewed, filter = "all" }: { day?: numbe
   const card = queue[i]!;
   return (
     <div className="mx-auto max-w-2xl">
+      {offlineCount > 0 && (
+        <p className="mb-3 rounded-xl bg-brand-soft px-3 py-2 text-xs" role="status">
+          Offline: {offlineCount} {offlineCount === 1 ? "review is" : "reviews are"} saved on this device and will sync when you reconnect.
+        </p>
+      )}
       <div className="mb-4 flex items-center gap-3">
         <ProgressBar value={(i / queue.length) * 100} label="Review progress" />
         <span className="shrink-0 text-xs tabular-nums text-muted">{i + 1}/{queue.length}</span>

@@ -5,6 +5,7 @@ import { api, errorMessage } from "@/lib/client/api";
 import { applyTheme, type Theme } from "@/components/theme";
 import { speak, unlockAudio } from "@/lib/client/audio";
 import { Badge, ErrorBanner, Notice, Spinner } from "@/components/ui";
+import { OfflineDownload } from "@/components/offline-download";
 
 interface S {
   userId: string;
@@ -27,6 +28,7 @@ interface Props {
   providers: { resolved: { llm: string; stt: string; tts: string; mode: string }; llm: string[]; speech: string[] };
   caps: { dailyRequests: number; monthlyCostCents: number };
   usage: { requestsLast24h: number; costCentsThisMonth: number };
+  lessonDays: number[];
   recordings: { id: string; mode: string; label: string | null; durationMs: number | null; createdAt: string; expiresAt: string; sizeBytes: number }[];
 }
 
@@ -51,7 +53,7 @@ function Field({ label, htmlFor, hint, children }: { label: string; htmlFor: str
   );
 }
 
-export function SettingsForm({ initial, profile, providers, caps, usage, recordings: initialRecs }: Props) {
+export function SettingsForm({ initial, profile, providers, caps, usage, lessonDays, recordings: initialRecs }: Props) {
   const [s, setS] = useState(initial);
   const [saved, setSaved] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -143,6 +145,10 @@ export function SettingsForm({ initial, profile, providers, caps, usage, recordi
         <Field label="Interruption-free conversations" htmlFor="if" hint="Hide feedback during conversations and show it all at the end.">
           <input id="if" type="checkbox" className="h-5 w-5 accent-[rgb(var(--brand))]" checked={s.interruptionFree} onChange={(e) => save({ interruptionFree: e.target.checked })} />
         </Field>
+      </Section>
+
+      <Section title="Offline use" desc="Practise on a plane or with a weak signal. Re-download after finishing new lessons.">
+        <OfflineDownload lessonDays={lessonDays} />
       </Section>
 
       <Section title="AI providers" desc="API keys are configured on the server (environment variables) and are never sent to your browser.">

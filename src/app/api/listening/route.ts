@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { ApiError, parseBody, withUser } from "@/lib/api";
 import { findListeningExercise } from "@/content/listening-index";
 import { gradeListening } from "@/lib/listening";
+import { findSynced, occurredAt, syncFields } from "@/lib/offline-sync";
 
 const schema = z.object({
   exerciseId: z.string().max(60),
@@ -12,6 +13,7 @@ const schema = z.object({
   playbackRate: z.number().min(0.5).max(2).optional(),
   replays: z.number().int().min(0).max(100).optional(),
   durationSec: z.number().int().min(0).max(7200).optional(),
+  ...syncFields,
 });
 
 export const POST = withUser(async (req, user) => {
@@ -19,6 +21,8 @@ export const POST = withUser(async (req, user) => {
   const ex = findListeningExercise(body.exerciseId);
   if (!ex) throw new ApiError(404, "Exercise not found.");
   const graded = gradeListening(ex, body.answers);
+  const existing = await findSynced(user.id, body.clientId);
+  if (existing) return NextResponse.json({ attemptId: existing.id, duplicate: true, ...graded });
   const attempt = await db.exerciseAttempt.create({
     data: {
       userId: user.id,
@@ -28,6 +32,8 @@ export const POST = withUser(async (req, user) => {
       score: graded.score,
       maxScore: graded.max,
       durationSec: body.durationSec ?? 0,
+      clientId: body.clientId,
+      createdAt: occurredAt(body.occurredAt),
       data: { answers: body.answers, level: ex.level, accent: ex.accent, playbackRate: body.playbackRate ?? 1, replays: body.replays ?? 0 },
     },
   });

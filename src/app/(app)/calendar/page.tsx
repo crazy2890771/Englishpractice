@@ -7,6 +7,7 @@ import { lessons, WEEKS, LESSON_STEPS } from "@/content/curriculum";
 import { PageHeader } from "@/components/layout/page-header";
 import { MountainScene } from "@/components/scenery";
 import { Badge, ProgressBar } from "@/components/ui";
+import { OfflineDownload } from "@/components/offline-download";
 
 export const metadata = { title: "30-Day Journey" };
 
@@ -17,6 +18,10 @@ export default async function CalendarPage() {
   return (
     <div className="space-y-6">
       <PageHeader back="/dashboard" title="30-Day Journey" subtitle="Your path to a more fluent you." />
+      <div className="card p-4">
+        <p className="mb-2 text-sm font-semibold">Going offline?</p>
+        <OfflineDownload compact lessonDays={ov.days.filter((d) => d.status !== "locked").map((d) => d.day)} />
+      </div>
 
       <section className="relative isolate overflow-hidden rounded-3xl border border-border p-6 text-white sm:p-8">
         <MountainScene variant="night" className="absolute inset-0 -z-10 h-full w-full" />

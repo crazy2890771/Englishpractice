@@ -6,6 +6,7 @@ import { ArrowRight, CheckCircle2, Circle, Pause, Play, PartyPopper, Target } fr
 import type { Lesson, ShadowingSentence } from "@/content/types";
 import { LESSON_STEPS, type StepId } from "@/content/curriculum";
 import { api, errorMessage } from "@/lib/client/api";
+import { isOfflineError } from "@/lib/client/outbox";
 import { useStudyTime } from "@/lib/client/use-study-time";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge, ErrorBanner, Notice, ProgressBar, Spinner } from "@/components/ui";
@@ -49,7 +50,8 @@ export function LessonWorkspace({ lesson, variant, shadowing, initial, nextDay }
     try {
       await api(`/api/lessons/${day}/start`, { method: "POST" });
     } catch (e) {
-      setStartError(errorMessage(e));
+      // Offline is fine: the lesson was already started when it was downloaded.
+      if (!isOfflineError(e)) setStartError(errorMessage(e));
     }
   }, [day]);
   useEffect(() => void startLesson(), [startLesson]);

@@ -1,10 +1,11 @@
 /* English Fluency Lab service worker — limited offline support.
  * - Static assets: cache-first.
  * - Pages: network-first, falling back to the last cached copy, then /offline.
+ *   "Download for offline" (Settings / Calendar) pre-fills these caches.
  * - API GETs for read-only data are network-first with cache fallback.
  * - AI, audio and all non-GET requests always go to the network.
  */
-const VERSION = "v1";
+const VERSION = "v2"; // keep cache names in sync with src/lib/client/offline-pack.ts
 const STATIC = `efl-static-${VERSION}`;
 const PAGES = `efl-pages-${VERSION}`;
 const PRECACHE = ["/offline", "/manifest.webmanifest", "/icons/icon.svg", "/icons/icon-192.png"];
@@ -28,7 +29,7 @@ self.addEventListener("fetch", (e) => {
   if (url.origin !== self.location.origin) return;
 
   if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/icons/")) {
-    e.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => { const copy = res.clone(); caches.open(STATIC).then((c) => c.put(req, copy)); return res; })));
+    e.respondWith(caches.match(req, { ignoreVary: true }).then((hit) => hit || fetch(req).then((res) => { const copy = res.clone(); caches.open(STATIC).then((c) => c.put(req, copy)); return res; })));
     return;
   }
   if (url.pathname.startsWith("/api/")) {
@@ -48,9 +49,9 @@ async function networkFirst(req, isPage) {
     if (res.ok && !res.redirected) cache.put(req, res.clone());
     return res;
   } catch {
-    const hit = await cache.match(req);
+    const hit = await cache.match(req, { ignoreVary: true });
     if (hit) return hit;
-    if (isPage) return (await caches.match("/offline")) || new Response("Offline", { status: 503 });
+    if (isPage) return (await caches.match("/offline", { ignoreVary: true })) || new Response("Offline", { status: 503 });
     return new Response(JSON.stringify({ error: { message: "You're offline.", code: "offline" } }), { status: 503, headers: { "content-type": "application/json" } });
   }
 }

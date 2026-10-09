@@ -9,6 +9,7 @@ import { ThemeToggle } from "../theme";
 import { MOBILE_TABS, NAV_ITEMS, SETTINGS_ITEM } from "./nav-items";
 import { useAppConfig } from "../providers";
 import { StudyTracker } from "../study-tracker";
+import { OutboxSync } from "../outbox-sync";
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -117,10 +118,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         {(offline || providers.mode === "demo") && (
           <div className={clsx("px-4 py-1.5 text-center text-xs font-medium", offline ? "bg-warn/20 text-fg" : "bg-brand-soft text-fg/80")}>
             {offline
-              ? "You're offline — cached lessons and saved text are available; AI and audio features need a connection."
+              ? "You're offline — downloaded lessons, listening and reviews still work and will sync later. Speaking and AI feedback need a connection."
               : "Demo mode: feedback is rule-based and speech uses your browser. Add AI keys on the server for full AI feedback."}
           </div>
         )}
+
+        <OutboxSync />
 
         <main id="main" className="mx-auto w-full max-w-7xl flex-1 px-4 pb-28 pt-5 sm:px-6 md:pb-10 lg:px-8">
           {children}

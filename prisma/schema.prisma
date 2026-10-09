@@ -109,6 +109,8 @@ model ExerciseAttempt {
   maxScore    Float?
   data        Json     @default("{}")
   durationSec Int      @default(0)
+  /// Client-generated id for attempts made offline and synced later (makes retries idempotent).
+  clientId    String?  @unique
   createdAt   DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

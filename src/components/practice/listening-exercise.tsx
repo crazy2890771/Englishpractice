@@ -3,7 +3,9 @@ import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Eye, Pause, Play, RotateCcw, XCircle } from "lucide-react";
 import type { ListeningExercise as Exercise } from "@/content/types";
-import { api, errorMessage } from "@/lib/client/api";
+import { errorMessage } from "@/lib/client/api";
+import { postOrQueue } from "@/lib/client/outbox";
+import { gradeListening } from "@/lib/listening";
 import { browserTtsSupported, speak, stopSpeaking, unlockAudio } from "@/lib/client/audio";
 import { useAppConfig } from "../providers";
 import { Badge, ErrorBanner, Notice, ProgressBar, Spinner, Tabs } from "../ui";
@@ -107,7 +109,8 @@ export function ListeningExercise({ exercise, day, onGraded }: { exercise: Exerc
   const [noAudio, setNoAudio] = useState(false);
   const replays = useRef(0);
   const started = useRef(Date.now());
-  const { providers } = useAppConfig();
+  const { providers, user } = useAppConfig();
+  const [queued, setQueued] = useState(false);
 
   useEffect(() => setNoAudio(providers.tts === "browser" && !browserTtsSupported()), [providers.tts]);
 
@@ -118,9 +121,15 @@ export function ListeningExercise({ exercise, day, onGraded }: { exercise: Exerc
     setBusy(true);
     setError(null);
     try {
-      const r = await api<ListeningResult>("/api/listening", {
-        body: { exerciseId: exercise.id, day, answers, replays: replays.current, durationSec: Math.round((Date.now() - started.current) / 1000) },
-      });
+      const out = await postOrQueue<ListeningResult>(
+        user.id,
+        "/api/listening",
+        { exerciseId: exercise.id, day, answers, replays: replays.current, durationSec: Math.round((Date.now() - started.current) / 1000) },
+        day ? { day, step: "listening" } : undefined,
+      );
+      // Offline: grade on the device with the same grader the server uses; the attempt syncs later.
+      const r = out.queued ? gradeListening(exercise, answers) : out.data;
+      setQueued(out.queued);
       setResult(r);
       setTab("questions");
       onGraded?.(r);
@@ -132,6 +141,7 @@ export function ListeningExercise({ exercise, day, onGraded }: { exercise: Exerc
   }
 
   function retry() {
+    setQueued(false);
     setAnswers({});
     setResult(null);
     setForceReveal(false);
@@ -242,6 +252,7 @@ export function ListeningExercise({ exercise, day, onGraded }: { exercise: Exerc
             );
           })}
         </ol>
+        {queued && <Notice className="mt-4">You&apos;re offline — checked on this device. Your score will sync automatically when you reconnect.</Notice>}
         {error && <ErrorBanner className="mt-4" message={error} onRetry={submit} />}
         <div className="mt-5 flex justify-end gap-2">
           {result ? (
