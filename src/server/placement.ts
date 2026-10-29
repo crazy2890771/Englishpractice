@@ -53,11 +53,30 @@ export async function getOrStartPlacement(tx: Tx, userId: string, language: Lang
   return null;
 }
 
-export async function startPlacement(tx: Tx, userId: string, language: LanguageId) {
+export type SelfReport = "none" | "basic" | "conversational" | "confident";
+
+/**
+ * Starting level from the learner's own description, so a beginner doesn't open on a long B1
+ * article. The staircase still moves up or down from here; this only picks the first question.
+ */
+export function startLevelFromSelf(language: LanguageId, self: SelfReport | undefined) {
+  const levels = placementLevels(language);
+  const fallback = lang(language).placementStart;
+  if (!self) return fallback;
+  const idx = { none: 0, basic: 1, conversational: 2, confident: 3 }[self];
+  return levels[Math.min(idx, levels.length - 1)] ?? fallback;
+}
+
+export async function startPlacement(tx: Tx, userId: string, language: LanguageId, self?: SelfReport) {
   const open = await getOrStartPlacement(tx, userId, language);
   if (open) return open;
+  const levels = placementLevels(language);
+  const start = startLevelFromSelf(language, self);
+  const startIdx = Math.max(0, levels.indexOf(start));
   const [a] = await tx.insert(schema.placementAssessments).values({ userId, languageId: language }).returning();
-  await tx.insert(schema.placementSkillResults).values(SKILLS.map((skill) => ({ assessmentId: a!.id, userId, skill })));
+  await tx.insert(schema.placementSkillResults).values(
+    SKILLS.map((skill) => ({ assessmentId: a!.id, userId, skill, state: (isOpenSkill(skill) ? { levelIdx: startIdx, tasks: [] } : initialState(levels, start)) as object })),
+  );
   return a!;
 }
 
@@ -117,9 +136,7 @@ async function maybeComplete(tx: Tx, userId: string, assessmentId: string, langu
   if (!skills.every((s) => s.status === "completed" || s.status === "skipped")) return false;
   const estimates: Partial<Record<Skill, string | null>> = {};
   // Skipped skills start at the lowest estimated skill level (or the first level).
-  const known = skills.filter((s) => s.estimatedLevel).map((s) => s.estimatedLevel!);
-  const levels = lang(language).levels.map((l) => l.code);
-  const fallback = known.length ? known.sort((a, b) => levels.indexOf(a) - levels.indexOf(b))[0]! : null;
+  const fallback = skippedFallback(language, skills);
   for (const s of skills) estimates[s.skill as Skill] = s.estimatedLevel ?? fallback;
   await initSkillTracks(tx, userId, language, estimates);
   await tx.update(schema.placementAssessments).set({ status: "completed", completedAt: new Date() }).where(eq(schema.placementAssessments.id, assessmentId));
@@ -241,11 +258,19 @@ export async function startFromBeginning(tx: Tx, userId: string, language: Langu
   await initSkillTracks(tx, userId, language, {});
 }
 
+/** Level used for skipped skills: the lowest level estimated for another skill (or null → first level). */
+export function skippedFallback(language: LanguageId, skills: { estimatedLevel: string | null }[]) {
+  const levels = lang(language).levels.map((l) => l.code);
+  const known = skills.filter((s) => s.estimatedLevel).map((s) => s.estimatedLevel!);
+  return known.length ? known.sort((a, b) => levels.indexOf(a) - levels.indexOf(b))[0]! : null;
+}
+
 export function recommendations(language: LanguageId, skills: { skill: string; estimatedLevel: string | null; weaknesses: string[] | null }[]) {
   const levels = lang(language).levels.map((l) => l.code);
+  const fallback = skippedFallback(language, skills);
   const recs = skills.map((s) => {
-    const level = startingLevel(language, s.estimatedLevel);
-    return { skill: s.skill, level, unit: unitsFor(language, level)[0] ?? null };
+    const level = startingLevel(language, s.estimatedLevel ?? fallback);
+    return { skill: s.skill, level, unit: unitsFor(language, level)[0] ?? null, inferred: !s.estimatedLevel, fromOtherSkills: !s.estimatedLevel && !!fallback };
   });
   // Priorities: weakest skills first, then the most frequent weakness tags.
   const weakest = [...skills].filter((s) => s.estimatedLevel).sort((a, b) => levels.indexOf(a.estimatedLevel!) - levels.indexOf(b.estimatedLevel!)).slice(0, 2).map((s) => s.skill);

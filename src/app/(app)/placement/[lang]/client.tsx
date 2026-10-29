@@ -2,6 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, CheckCircle2, Clock, Headphones, Loader2, Mic, BookOpen, PenLine, Library, SkipForward } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -40,10 +41,18 @@ export function PlacementClient({ language, languageName, ttsLang, sttLang, asse
     if (allDone) router.refresh();
   }, [allDone, router]);
 
+  const [self, setSelf] = useState<string | null>(null);
+  const SELF: [string, string, string][] = [
+    ["none", "ไม่เคยเรียน / รู้น้อยมาก", "Never studied / very little"],
+    ["basic", "พื้นฐาน — ประโยคง่าย ๆ ได้", "Basics — simple sentences"],
+    ["conversational", "พอสื่อสารเรื่องทั่วไปได้", "Can handle everyday conversation"],
+    ["confident", "ใช้งานได้คล่อง", "Confident user"],
+  ];
+
   async function start() {
     setBusy(true);
     try {
-      const r = await api<{ id: string }>(`/api/placement/${language}/start`, { method: "POST" });
+      const r = await api<{ id: string }>(`/api/placement/${language}/start`, { body: { self } });
       setAssessmentId(r.id);
       setSkills(ORDER.map((s) => ({ skill: s, status: "not_started" })));
     } catch (e) {
@@ -110,8 +119,8 @@ export function PlacementClient({ language, languageName, ttsLang, sttLang, asse
         <h1 className="text-2xl font-semibold tracking-tight">{L(`แบบทดสอบวัดระดับ${languageName}`, `${languageName} placement test`)}</h1>
         <p className="text-muted-foreground">
           {L(
-            "เราวัด 5 ทักษะแยกกัน: การฟัง การพูด การอ่าน การเขียน และคำศัพท์ คำถามเริ่มจากระดับกลางแล้วปรับยากง่ายตามคำตอบของคุณ ทำทีละทักษะ หยุดแล้วกลับมาทำต่อได้",
-            "We assess five skills separately: listening, speaking, reading, writing and vocabulary. Questions start at a moderate level and adapt to your answers. Do one skill at a time — you can pause and resume.",
+            "เราวัด 5 ทักษะแยกกัน: การฟัง การพูด การอ่าน การเขียน และคำศัพท์ คำถามปรับยากง่ายตามคำตอบของคุณ ทำทีละทักษะ หยุดแล้วกลับมาทำต่อได้",
+            "We assess five skills separately: listening, speaking, reading, writing and vocabulary. Questions adapt to your answers. Do one skill at a time — you can pause and resume.",
           )}
         </p>
         <ul className="space-y-2 text-sm">
@@ -119,9 +128,20 @@ export function PlacementClient({ language, languageName, ttsLang, sttLang, asse
           <li className="flex items-center gap-2"><Mic className="size-4 text-muted-foreground" /> {L("ส่วนการพูดใช้ไมโครโฟน (หรือพิมพ์แทนได้)", "Speaking uses your microphone (typing is possible too)")}</li>
         </ul>
         <p className="rounded-xl bg-secondary px-4 py-3 text-sm text-muted-foreground">{L("ผลที่ได้เป็นการประเมินโดยประมาณของแอป ไม่ใช่ผลสอบ CEFR หรือ HSK อย่างเป็นทางการ", "Results are unofficial app estimates — not certified CEFR or HSK results.")}</p>
+        <fieldset className="space-y-2">
+          <legend className="mb-2 font-medium">{L(`ตอนนี้${languageName}ของคุณประมาณไหน?`, `How would you describe your ${languageName} now?`)}</legend>
+          <div role="radiogroup" className="grid gap-2 sm:grid-cols-2">
+            {SELF.map(([id, th, en]) => (
+              <button key={id} type="button" role="radio" aria-checked={self === id} onClick={() => setSelf(id)} className={cn("rounded-xl border px-4 py-3 text-left text-sm", self === id ? "border-primary bg-accent font-medium" : "hover:bg-secondary")}>
+                {L(th, en)}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">{L("ใช้เลือกคำถามข้อแรกเท่านั้น หลังจากนั้นระบบปรับระดับตามคำตอบจริง", "Only used to pick the first question — after that, your answers decide.")}</p>
+        </fieldset>
         {error && <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button size="lg" onClick={start} disabled={busy}>
+          <Button size="lg" onClick={start} disabled={busy || !self}>
             {busy && <Loader2 className="animate-spin" />} {L("เริ่มทำแบบทดสอบ", "Start the test")}
           </Button>
           <Button size="lg" variant="outline" onClick={beginner} disabled={busy}>

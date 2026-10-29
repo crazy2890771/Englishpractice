@@ -26,6 +26,7 @@ export function PracticeClient({ languages, aiEnabled, defaultTopics }: { langua
   const [language, setLanguage] = useState(languages[0]!.language);
   const [topic, setTopic] = useState(defaultTopics[0] ?? "daily");
   const [busy, setBusy] = useState<string | null>(null);
+  const [minutes, setMinutes] = useState(15);
   const [err, setErr] = useState<string | null>(null);
   const current = languages.find((l) => l.language === language)!;
 
@@ -70,24 +71,35 @@ export function PracticeClient({ languages, aiEnabled, defaultTopics }: { langua
         </Card>
       ) : (
         <>
+          <Card className="gap-0 py-0">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+              <p className="text-sm font-medium">{L("ฝึกทักษะ", "Practise a skill")}</p>
+              <div role="radiogroup" aria-label={L("ระยะเวลา", "Duration")} className="flex gap-1">
+                {[10, 15, 20, 30].map((m) => (
+                  <button key={m} type="button" role="radio" aria-checked={minutes === m} onClick={() => setMinutes(m)} className={cn("rounded-lg px-2.5 py-1 text-xs font-medium", minutes === m ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground")}>
+                    {L(`${m} นาที`, `${m} min`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <ul className="divide-y">
+              {SKILL_CARDS.map(({ skill, icon: Icon, th, en }) => (
+                <li key={skill} className="flex items-center gap-3 px-4 py-3">
+                  <Icon className="size-5 shrink-0 text-primary" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">{L(SKILL_NAMES[skill]!.th, SKILL_NAMES[skill]!.en)}</p>
+                    <p className="truncate text-xs text-muted-foreground">{L(th, en)}</p>
+                  </div>
+                  <StartSession language={language} skills={[skill]} kind="practice" defaultMinutes={minutes} minutes={minutes} label={L("เริ่มฝึก", "Practise")} variant="outline" size="sm" />
+                </li>
+              ))}
+            </ul>
+          </Card>
           <div className="grid gap-3 sm:grid-cols-2">
-            {SKILL_CARDS.map(({ skill, icon: Icon, th, en }) => (
-              <Card key={skill} className="gap-3">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Icon className="size-5 text-primary" /> {L(SKILL_NAMES[skill]!.th, SKILL_NAMES[skill]!.en)}
-                  </CardTitle>
-                  <CardDescription>{L(th, en)}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <StartSession language={language} skills={[skill]} kind="practice" defaultMinutes={15} label={L("เริ่มฝึก", "Practise")} variant="outline" />
-                </CardContent>
-              </Card>
-            ))}
             <Card className="gap-3">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Layers className="size-5 text-primary" /> {L("ทบทวนคำศัพท์ (SRS)", "Vocabulary review (SRS)")}
+                  <Layers className="size-5 text-primary" /> {L("ทบทวนคำศัพท์", "Vocabulary review")}
                 </CardTitle>
                 <CardDescription>{L(`ถึงกำหนดทบทวน ${current.due} คำ`, `${current.due} words due`)}</CardDescription>
               </CardHeader>
@@ -102,7 +114,7 @@ export function PracticeClient({ languages, aiEnabled, defaultTopics }: { langua
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <MessagesSquare className="size-5 text-primary" /> {L("สนทนาอิสระกับครู AI", "Free conversation with the AI tutor")}
+                <MessagesSquare className="size-5 text-primary" /> {aiEnabled ? L("สนทนาอิสระกับครู AI", "Free conversation with the AI tutor") : L("ฝึกสนทนา (โหมดเดโม)", "Conversation practice (demo)")}
               </CardTitle>
               <CardDescription>{L("ครูถามทีละคำถาม คุณตอบด้วยเสียงหรือพิมพ์ แล้วรับการแก้ไขตามที่ตั้งค่าไว้", "One question at a time — answer by voice or text and get corrections the way you prefer.")}</CardDescription>
             </CardHeader>
@@ -136,9 +148,7 @@ export function PracticeClient({ languages, aiEnabled, defaultTopics }: { langua
                 ))}
               </CardContent>
             </Card>
-          ) : (
-            <p className="text-xs text-muted-foreground">{L("แบบฝึกที่สร้างโดย AI จะเปิดใช้เมื่อตั้งค่าผู้ให้บริการ AI (ตอนนี้ใช้คลังแบบฝึกของหลักสูตร)", "AI-generated practice is available once an AI provider is configured (the curriculum bank is used now).")}</p>
-          )}
+          ) : null}
           {err && <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{err}</p>}
         </>
       )}

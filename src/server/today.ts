@@ -48,7 +48,14 @@ export async function todayView(tx: Tx, learner: Learner, now = new Date()) {
     recent.map((r) => ({ kind: r.kind, status: r.status, scheduledDate: r.scheduledDate, languageId: r.languageId, skills: r.skills })),
     day.date,
     7,
-  ).filter((m) => (progressByLang[m.slot.languageId] ?? []).length > 0);
+  ).filter((m) => {
+    // Only days after the learner started that language: never "missed" lessons from before sign-up/placement.
+    const track = progressByLang[m.slot.languageId] ?? [];
+    if (!track.length) return false;
+    const started = localDay(new Date(Math.min(...track.map((p) => p.startedAt.getTime()))), tz).date;
+    const joined = localDay(learner.profile.createdAt, tz).date;
+    return m.date >= (started > joined ? started : joined);
+  });
 
   const dueEn = await countDue(tx, learner.id, "en", now);
   const dueZh = await countDue(tx, learner.id, "zh", now);
@@ -56,6 +63,13 @@ export async function todayView(tx: Tx, learner: Learner, now = new Date()) {
   const logs = await tx.select().from(schema.studyLog).where(and(eq(schema.studyLog.userId, learner.id), gte(schema.studyLog.logDate, addDays(day.date, -60))));
   const activeDates = [...new Set(logs.filter((l) => l.seconds >= 60).map((l) => l.logDate))];
   const week = weeklyConsistency(activeDates, day.date, 1)[0]!;
+  const todaySeconds = logs.filter((l) => l.logDate === day.date).reduce((a, l) => a + l.seconds, 0);
+  // Streak: consecutive days with ≥ 1 minute of study, ending today (or yesterday if today isn't done yet).
+  const active = new Set(activeDates);
+  let streak = 0;
+  for (let d = active.has(day.date) ? day.date : addDays(day.date, -1); active.has(d); d = addDays(d, -1)) streak++;
+  // The most recent unfinished lesson, to resume in one tap.
+  const unfinished = recent.find((r) => r.status === "in_progress" && r.kind !== "level_exam" && r.kind !== "unit_assessment");
   const weekStart = addDays(day.date, -day.weekday);
   const weekPlanned = schedule.length;
   const weekDone = recent.filter((r) => r.status === "completed" && r.scheduledDate && r.scheduledDate >= weekStart && (r.kind === "scheduled" || r.kind === "makeup" || r.kind === "review")).length;
@@ -67,6 +81,8 @@ export async function todayView(tx: Tx, learner: Learner, now = new Date()) {
     missed: missed.slice(0, 6),
     due: { en: dueEn, zh: dueZh },
     week: { activeDays: week.days, planned: weekPlanned, done: Math.min(weekDone, weekPlanned), weekStart },
+    goal: { minutes: learner.profile.dailyMinutes, doneMinutes: Math.floor(todaySeconds / 60), streak },
+    resume: unfinished ? { id: unfinished.id, kind: unfinished.kind, languageId: unfinished.languageId, skills: unfinished.skills, answered: Object.keys(((unfinished.state ?? {}) as { answered?: object }).answered ?? {}).length } : null,
     schedule,
   };
 }

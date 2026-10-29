@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CalendarClock, CheckCircle2, Layers, Sparkles } from "lucide-react";
+import { ArrowRight, CalendarClock, CheckCircle2, Flame, Layers, Sparkles } from "lucide-react";
 import { and, eq } from "drizzle-orm";
 import { asUser, schema } from "@/db";
 import { getLearner } from "@/server/learner";
@@ -38,7 +38,32 @@ export default async function TodayPage() {
         <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
           {greeting}, {learner.profile.displayName || L("นักเรียน", "learner")}
         </h1>
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+          <div className="flex min-w-48 flex-1 items-center gap-2">
+            <Progress className="h-2 max-w-56" value={Math.min(100, (view.goal.doneMinutes / Math.max(1, view.goal.minutes)) * 100)} aria-label={L("เป้าหมายวันนี้", "Today's goal")} />
+            <span className="whitespace-nowrap text-muted-foreground">
+              {view.goal.doneMinutes >= view.goal.minutes ? L("ครบเป้าวันนี้แล้ว ✓", "Today's goal done ✓") : L(`วันนี้ ${view.goal.doneMinutes}/${view.goal.minutes} นาที`, `Today ${view.goal.doneMinutes}/${view.goal.minutes} min`)}
+            </span>
+          </div>
+          {view.goal.streak > 0 && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
+              <Flame className="size-3.5" aria-hidden /> {L(`เรียนต่อเนื่อง ${view.goal.streak} วัน`, `${view.goal.streak}-day streak`)}
+            </span>
+          )}
+        </div>
       </header>
+
+      {view.resume && (
+        <Link href={`/session/${view.resume.id}`} className="flex items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-accent px-4 py-3 text-accent-foreground hover:border-primary">
+          <span className="min-w-0">
+            <span className="block text-sm font-medium">{L("เรียนต่อจากที่ค้างไว้", "Continue where you left off")}</span>
+            <span className="block truncate text-xs opacity-80">
+              {langName(view.resume.languageId)} · {skillNames(view.resume.skills)} · {L(`ทำไปแล้ว ${view.resume.answered} ข้อ`, `${view.resume.answered} answered`)}
+            </span>
+          </span>
+          <ArrowRight className="size-5 shrink-0" aria-hidden />
+        </Link>
+      )}
 
       <section aria-labelledby="today-heading" className="space-y-3">
         <h2 id="today-heading" className="text-sm font-medium text-muted-foreground">

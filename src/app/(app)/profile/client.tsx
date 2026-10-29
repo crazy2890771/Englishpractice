@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Download, Loader2, LogOut, Plus, Save, Trash2, X } from "lucide-react";
+import { CalendarPlus, Download, Loader2, LogOut, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -268,10 +268,18 @@ export function ProfileClient(props: {
           <Row title={L("ทบทวนสูงสุดต่อวัน", "Max reviews per day")}>
             <Input type="number" min={5} max={300} value={p.reviewMaxPerDay} onChange={(e) => set("reviewMaxPerDay", Math.max(5, Math.min(300, Number(e.target.value) || 5)))} className="w-24" aria-label={L("ทบทวนสูงสุดต่อวัน", "Max reviews per day")} />
           </Row>
-          <Row title={L("เตือนให้เรียน", "Study reminder")} hint={L("บันทึกเวลาที่ต้องการไว้ — ยังไม่มีการส่งการแจ้งเตือนจริง", "Saved preference only — notifications are not sent yet")}>
-            <div className="flex items-center gap-2">
-              <Input type="time" value={p.reminderTime} onChange={(e) => set("reminderTime", e.target.value)} disabled={!p.reminderEnabled} className="w-32" aria-label={L("เวลาเตือน", "Reminder time")} />
-              <Switch checked={p.reminderEnabled} onCheckedChange={(v) => set("reminderEnabled", v)} aria-label={L("เปิดการเตือน", "Enable reminder")} />
+          <Row title={L("เตือนให้เรียน", "Study reminder")} hint={L("เพิ่มตารางเรียนลงปฏิทินของมือถือ แล้วปฏิทินจะเตือนตามเวลาที่ตั้งไว้ในวันที่มีเรียน", "Add your schedule to your phone's calendar — it will alert you at this time on study days")}>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input type="time" value={p.reminderTime} onChange={(e) => set("reminderTime", e.target.value)} className="w-32" aria-label={L("เวลาเตือน", "Reminder time")} />
+              {dirty ? (
+                <span className="text-xs text-muted-foreground">{L("บันทึกก่อน แล้วจึงเพิ่มลงปฏิทิน", "Save first, then add to calendar")}</span>
+              ) : (
+                <Button variant="outline" size="sm" asChild>
+                  <a href="/api/profile/calendar" download>
+                    <CalendarPlus /> {L("เพิ่มลงปฏิทิน", "Add to calendar")}
+                  </a>
+                </Button>
+              )}
             </div>
           </Row>
         </CardContent>

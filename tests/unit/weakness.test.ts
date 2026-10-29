@@ -14,6 +14,10 @@ describe("weakness tracker", () => {
     const spread = [1, 2, 3].map((d, i) => ({ at: daysAgo(d), exerciseId: `e${i % 2}` }));
     expect(evaluateWeakness({ mistakes: spread, taggedAttempts: [] }, now).status).toBe("active");
   });
+  it("one bad lesson (all mistakes on the same day) is not a weakness yet", () => {
+    const sameDay = [1, 2, 3, 4].map((i) => ({ at: new Date(now.getTime() - 86_400_000 - i * 60_000), exerciseId: `e${i}` }));
+    expect(evaluateWeakness({ mistakes: sameDay, taggedAttempts: [] }, now).status).toBe("watching");
+  });
   it("ignores mistakes older than 21 days for activation", () => {
     const old = [30, 31, 32].map((d, i) => ({ at: daysAgo(d), exerciseId: `e${i}` }));
     expect(evaluateWeakness({ mistakes: old, taggedAttempts: [] }, now).status).toBe("watching");

@@ -31,7 +31,22 @@ export function SessionSummary({ languageId, summary }: { kind: string; language
   const bySkill = (summary.bySkill ?? {}) as Record<string, number>;
   const exam = summary.exam as ExamSummary | undefined;
   const unit = summary.assessment as { score: number; passed: boolean; unlocked: { next: string | null; levelUnitsDone: boolean } | null } | undefined;
+  const secs = Number(summary.seconds ?? Number(summary.minutes ?? 0) * 60);
+  const words = (summary.words ?? []) as { word: string; pronunciation: string | null; meaning: string }[];
+  const mistakesList = (summary.mistakesList ?? []) as { original: string; corrected: string; explanation: string }[];
+  const next = summary.next as { type: "unit_test" | "review" | "done"; unitId?: string; skill?: string } | undefined;
   const remediation = summary.remediation as { counted: boolean; completed?: number; required?: number } | undefined;
+
+  async function startUnitTest(unitId: string, skill: string) {
+    setBusy(true);
+    try {
+      const r = await api<{ id: string }>("/api/sessions", { body: { kind: "unit_assessment", unitId, skill } });
+      router.push(`/session/${r.id}`);
+    } catch (e) {
+      setErr(errorText((e as ApiError).code, uiLang));
+      setBusy(false);
+    }
+  }
 
   async function startRemediation(resultId: string) {
     setBusy(true);
@@ -64,8 +79,8 @@ export function SessionSummary({ languageId, summary }: { kind: string; language
             <p className="text-xs text-muted-foreground">{L("ข้อที่ทำ", "Answered")}</p>
           </div>
           <div>
-            <p className="text-2xl font-semibold">{String(summary.minutes ?? 0)}</p>
-            <p className="text-xs text-muted-foreground">{L("นาที", "Minutes")}</p>
+            <p className="text-2xl font-semibold">{secs < 60 ? secs : Math.round(secs / 60)}</p>
+            <p className="text-xs text-muted-foreground">{secs < 60 ? L("วินาที", "Seconds") : L("นาที", "Minutes")}</p>
           </div>
         </CardContent>
       </Card>
@@ -117,6 +132,67 @@ export function SessionSummary({ languageId, summary }: { kind: string; language
         <Card>
           <CardContent className="space-y-2 text-sm">
             <p>{unit.passed ? (unit.unlocked?.next ? L("ปลดล็อกหน่วยถัดไปแล้ว", "Next unit unlocked.") : L("ผ่านทุกหน่วยในระดับนี้แล้ว — พร้อมสอบเลื่อนระดับ", "All units in this level done — the level exam is available.")) : L("ต้องได้อย่างน้อย 70% ฝึกเพิ่มแล้วลองใหม่ได้", "You need at least 70%. Practise more and try again.")}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {next && next.type !== "done" && (
+        <Card className="border-primary/30 bg-accent/60">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            <p className="font-medium">
+              {next.type === "unit_test" ? L("พร้อมทำแบบทดสอบประจำหน่วยแล้ว!", "You're ready for the unit test!") : L("ขั้นต่อไป: ทบทวนคำศัพท์ที่ถึงกำหนด", "Next: review your due words")}
+            </p>
+            {next.type === "unit_test" && next.skill ? (
+              <Button size="sm" disabled={busy} onClick={() => startUnitTest(next.unitId!, next.skill!)}>
+                {busy && <Loader2 className="animate-spin" />} {L("เริ่มทดสอบ", "Start test")}
+              </Button>
+            ) : (
+              <Button size="sm" asChild>
+                <Link href={`/review?lang=${languageId}`}>{L("ทบทวน", "Review")}</Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {mistakesList.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{L("จุดที่ควรจำจากบทนี้", "Mistakes to remember")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm">
+              {mistakesList.map((m, i) => (
+                <li key={i} className="rounded-xl bg-secondary/60 p-3">
+                  <p className={languageId === "zh" ? "zh" : undefined}>
+                    <span className="text-red-700 line-through decoration-red-300">{m.original}</span> <span aria-hidden>→</span> <span className="font-medium">{m.corrected}</span>
+                  </p>
+                  {m.explanation && <p className="mt-1 text-xs text-muted-foreground">{m.explanation}</p>}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {words.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{L("คำศัพท์ของบทนี้", "Words from this lesson")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2">
+              {words.map((w) => (
+                <li key={w.word} className="flex items-baseline justify-between gap-3 border-b border-dashed pb-1">
+                  <span className={languageId === "zh" ? "zh font-medium" : "font-medium"}>
+                    {w.word}
+                    {languageId === "zh" && w.pronunciation && <span className="ml-1.5 text-xs font-normal text-muted-foreground">{w.pronunciation}</span>}
+                  </span>
+                  <span className="text-right text-muted-foreground">{w.meaning}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-muted-foreground">{L("คำเหล่านี้ถูกเพิ่มในรอบทบทวนแล้ว", "These words are now in your review deck.")}</p>
           </CardContent>
         </Card>
       )}

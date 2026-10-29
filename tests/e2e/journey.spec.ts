@@ -8,6 +8,8 @@ test("new learner: sign-up → placement → separate EN/ZH levels → lesson wi
   await signUpAsGuest(page, "Mali");
 
   // English placement: answer the listening section fully, skip the other skills.
+  await expect(page.getByRole("button", { name: "เริ่มทำแบบทดสอบ" })).toBeDisabled();
+  await page.getByRole("radio", { name: /พื้นฐาน — ประโยคง่าย/ }).click();
   await page.getByRole("button", { name: "เริ่มทำแบบทดสอบ" }).click();
   await expect(page.getByRole("button", { name: "เริ่ม" }).first()).toBeVisible();
   await page.getByRole("button", { name: "เริ่ม" }).first().click();
@@ -111,6 +113,13 @@ test("mobile navigation, profile preferences and schedule editing work", async (
   const download = page.waitForEvent("download");
   await page.getByRole("link", { name: /ดาวน์โหลด/ }).click();
   expect((await download).suggestedFilename()).toMatch(/fluency-lab-export-.*\.json/);
+
+  // Calendar reminders (.ics) reflect the edited schedule: Sunday is now a rest day.
+  const ics = await page.request.get("/api/profile/calendar");
+  expect(ics.headers()["content-type"]).toContain("text/calendar");
+  const body = await ics.text();
+  expect(body.match(/BEGIN:VEVENT/g)?.length).toBe(6);
+  expect(body).not.toContain("BYDAY=SU");
   await expectNoCrash(errors, page);
 });
 

@@ -247,6 +247,8 @@ export const skillProgress = pgTable(
     levelCode: text("level_code").notNull(),
     placementLevel: text("placement_level"),
     currentUnitId: text("current_unit_id").references(() => units.id),
+    /** When this skill track started (placement or "start from the beginning"). */
+    startedAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.languageId, t.skill] }), own("skill_progress", t.userId)],

@@ -16,7 +16,7 @@ const LIMIT_TEXT: Record<string, [string, string]> = {
   open_task_estimate: ["ประเมินจากงานพูด/เขียน 2 ชิ้น", "Based on two speaking/writing tasks"],
   demo_evaluator: ["ใช้ตัวตรวจแบบกฎในโหมดเดโม (ไม่ใช่ AI) ความแม่นยำจำกัด", "Rule-based demo evaluator (not AI) — limited accuracy"],
   no_pronunciation_assessment: ["ไม่ได้ประเมินการออกเสียง", "Pronunciation not assessed"],
-  skipped: ["ข้ามทักษะนี้ — ใช้ระดับจากทักษะอื่น", "Skipped — level inferred from other skills"],
+  skipped: ["ข้ามทักษะนี้ — ไม่ได้วัดจริง สอบใหม่ได้ในหน้าโปรไฟล์", "Skipped — not measured; you can retake it from Profile"],
 };
 
 export function PlacementResults(props: {
@@ -25,7 +25,7 @@ export function PlacementResults(props: {
   frameworkNote: string;
   completedAt: string | null;
   skills: { skill: string; status: string; level: string | null; levelName: string | null; confidence: string | null; strengths: string[]; weaknesses: string[]; limitations: string[]; detail: { belowFirstLevel?: boolean } | null; evaluator: string | null }[];
-  recommendations: { skill: string; level: string; unit: { id: string; title: string; titleTh: string } | null }[];
+  recommendations: { skill: string; level: string; fromOtherSkills: boolean; unit: { id: string; title: string; titleTh: string } | null }[];
   priorities: { skills: string[]; tags: string[] };
 }) {
   const L = useL();
@@ -48,7 +48,11 @@ export function PlacementResults(props: {
                 </div>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
-                <p className="text-2xl font-semibold">{s.level ?? "—"}{s.detail?.belowFirstLevel && <span className="ml-2 text-sm font-normal text-muted-foreground">{L("(เริ่มต้น)", "(beginner)")}</span>}</p>
+                <p className="text-2xl font-semibold">
+                  {s.level ?? rec?.level ?? "—"}
+                  {s.detail?.belowFirstLevel && <span className="ml-2 text-sm font-normal text-muted-foreground">{L("(เริ่มต้น)", "(beginner)")}</span>}
+                  {s.status === "skipped" && rec && <span className="ml-2 text-sm font-normal text-muted-foreground">{rec.fromOtherSkills ? L("(อ้างอิงจากทักษะอื่น)", "(from your other skills)") : L("(เริ่มจากพื้นฐาน)", "(from the basics)")}</span>}
+                </p>
                 {s.strengths.length > 0 && <p><span className="text-muted-foreground">{L("จุดแข็ง: ", "Strengths: ")}</span>{s.strengths.join(", ")}</p>}
                 {s.weaknesses.length > 0 && <p><span className="text-muted-foreground">{L("ควรพัฒนา: ", "To improve: ")}</span>{s.weaknesses.join(", ")}</p>}
                 {rec?.unit && <p><span className="text-muted-foreground">{L("เริ่มที่: ", "Start with: ")}</span>{rec.level} · {L(rec.unit.titleTh, rec.unit.title)}</p>}

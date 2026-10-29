@@ -69,14 +69,23 @@ export function DiffView({ tokens, zh }: { tokens: DiffToken[]; zh: boolean }) {
   );
 }
 
-export function EvaluationView({ ev, onRetry, retried }: { ev: OpenEvaluation; onRetry?: () => void; retried?: boolean }) {
+/** Rough band for demo results — a precise percentage would overstate what rules can judge. */
+function demoBand(score: number): [string, string] {
+  if (score >= 0.8) return ["ภาษาดี (ระบบตรวจได้เท่านี้)", "Language looks good (as far as rules can tell)"];
+  if (score >= 0.6) return ["พอใช้ — มีจุดให้ปรับ", "Fair — some things to improve"];
+  return ["ควรปรับปรุง", "Needs work"];
+}
+
+export function EvaluationView({ ev, onRetry, retried, requirements }: { ev: OpenEvaluation; onRetry?: () => void; retried?: boolean; requirements?: string[] }) {
   const L = useL();
   const [showCorrected, setShowCorrected] = useState(false);
+  const [checked, setChecked] = useState<Record<number, boolean>>({});
+  const demo = ev.evaluator !== "ai";
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={ev.evaluator === "ai" ? "success" : "warning"}>{ev.evaluator === "ai" ? L("ประเมินโดย AI", "AI evaluation") : L("เดโม · ตรวจด้วยกฎ ไม่ใช่ AI", "Demo · rule-based, not AI")}</Badge>
-        <span className="text-sm font-semibold">{Math.round(ev.score * 100)}%</span>
+        <span className="text-sm font-semibold">{demo ? L(...demoBand(ev.score)) : `${Math.round(ev.score * 100)}%`}</span>
       </div>
       <p className="text-sm">{ev.comment}</p>
       <dl className="grid gap-2 sm:grid-cols-2">
@@ -119,6 +128,70 @@ export function EvaluationView({ ev, onRetry, retried }: { ev: OpenEvaluation; o
         )}
       </div>
       {showCorrected && <p className="rounded-xl border bg-card p-3 text-sm whitespace-pre-wrap">{ev.correctedVersion}</p>}
+      {demo && requirements && requirements.length > 0 && (
+        <fieldset className="space-y-1.5 rounded-xl border border-dashed p-3 text-sm">
+          <legend className="px-1 text-xs font-medium text-muted-foreground">{L("เช็กเอง: ตอบครบตามโจทย์ไหม? (ระบบเดโมอ่านความหมายไม่ได้)", "Self-check: did you cover the task? (the demo can't read meaning)")}</legend>
+          {requirements.map((r, i) => (
+            <label key={r} className="flex items-start gap-2">
+              <input type="checkbox" className="mt-1 size-4 accent-[var(--primary)]" checked={!!checked[i]} onChange={(e) => setChecked({ ...checked, [i]: e.target.checked })} />
+              <span className={cn(checked[i] && "text-muted-foreground line-through")}>{r}</span>
+            </label>
+          ))}
+        </fieldset>
+      )}
+    </div>
+  );
+}
+
+const PAIR_COLORS = ["bg-sky-100 border-sky-400", "bg-amber-100 border-amber-400", "bg-emerald-100 border-emerald-400", "bg-violet-100 border-violet-400", "bg-rose-100 border-rose-400", "bg-lime-100 border-lime-500"];
+
+/** Tap a word on the left, then its meaning on the right. Matched pairs share a colour and number. */
+function MatchPairs({ left, right, pairs, picked, locked, zh, onPick, onPair, onUnpair }: { left: string[]; right: string[]; pairs: Record<string, string>; picked: string | null; locked: boolean; zh: boolean; onPick: (l: string | null) => void; onPair: (l: string, r: string) => void; onUnpair: (l: string) => void }) {
+  const L = useL();
+  const index = (l: string) => left.indexOf(l);
+  const rightOwner = (r: string) => Object.entries(pairs).find(([, v]) => v === r)?.[0] ?? null;
+  const tile = "flex min-h-11 w-full items-center gap-2 rounded-xl border px-3 py-2 text-left text-[15px] transition-colors disabled:opacity-100";
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">{L("แตะคำทางซ้าย แล้วแตะความหมายทางขวา (แตะคู่ที่จับแล้วเพื่อยกเลิก)", "Tap a word on the left, then its meaning on the right (tap a matched word to undo).")}</p>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-2" data-testid="match-left">
+          {left.map((l) => {
+            const paired = pairs[l] !== undefined;
+            return (
+              <button
+                key={l}
+                type="button"
+                disabled={locked}
+                aria-pressed={picked === l}
+                aria-label={paired ? `${l} → ${pairs[l]}` : l}
+                onClick={() => (paired ? onUnpair(l) : onPick(picked === l ? null : l))}
+                className={cn(tile, "font-medium", zh && "zh", paired ? PAIR_COLORS[index(l) % PAIR_COLORS.length] : picked === l ? "border-primary bg-accent ring-2 ring-primary/30" : "bg-secondary/60 hover:bg-secondary")}
+              >
+                {paired && <span className="text-xs tabular-nums opacity-70">{index(l) + 1}</span>}
+                {l}
+              </button>
+            );
+          })}
+        </div>
+        <div className="space-y-2" data-testid="match-right">
+          {right.map((r) => {
+            const owner = rightOwner(r);
+            return (
+              <button
+                key={r}
+                type="button"
+                disabled={locked || (!picked && !owner)}
+                onClick={() => (picked ? onPair(picked, r) : owner ? onUnpair(owner) : undefined)}
+                className={cn(tile, owner ? PAIR_COLORS[index(owner) % PAIR_COLORS.length] : picked ? "bg-card hover:border-primary" : "bg-card")}
+              >
+                {owner && <span className="text-xs tabular-nums opacity-70">{index(owner) + 1}</span>}
+                {r}
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -154,6 +227,7 @@ export function ExercisePlayer({
   const [text, setText] = useState(draft ?? "");
   const [order, setOrder] = useState<number[]>([]);
   const [pairs, setPairs] = useState<Record<string, string>>({});
+  const [pickLeft, setPickLeft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [hasRetried, setHasRetried] = useState(false);
@@ -299,27 +373,21 @@ export function ExercisePlayer({
       )}
 
       {ex.type === "match_pairs" && (
-        <div className="space-y-2">
-          {ex.left!.map((l) => (
-            <div key={l} className="grid grid-cols-[1fr_1.4fr] items-center gap-3">
-              <span className={cn("rounded-xl bg-secondary px-3 py-2.5 text-[15px] font-medium", zh && "zh")}>{l}</span>
-              <select
-                aria-label={l}
-                value={pairs[l] ?? ""}
-                disabled={locked}
-                onChange={(e) => setPairs({ ...pairs, [l]: e.target.value })}
-                className="h-11 w-full rounded-xl border bg-background px-3 text-sm"
-              >
-                <option value="">{L("— เลือก —", "— choose —")}</option>
-                {ex.right!.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ))}
-        </div>
+        <MatchPairs
+          left={ex.left!}
+          right={ex.right!}
+          pairs={pairs}
+          picked={pickLeft}
+          locked={locked}
+          zh={zh}
+          onPick={setPickLeft}
+          onPair={(l, r) => {
+            const next = Object.fromEntries(Object.entries(pairs).filter(([k, v]) => k !== l && v !== r));
+            setPairs({ ...next, [l]: r });
+            setPickLeft(null);
+          }}
+          onUnpair={(l) => setPairs(Object.fromEntries(Object.entries(pairs).filter(([k]) => k !== l)))}
+        />
       )}
 
       {ex.type === "open_writing" && (!result || retrying) && (
@@ -387,7 +455,7 @@ export function ExercisePlayer({
           )}
           {result.diff && <DiffView tokens={result.diff} zh={zh} />}
           {result.diff && ex.type === "repeat_sentence" && <p className="text-xs text-muted-foreground">{L("เทียบจากคำที่ระบบรู้จำได้ ไม่ใช่คะแนนการออกเสียงระดับหน่วยเสียง", "Compared by recognised words — not a phoneme-level pronunciation score.")}</p>}
-          {result.evaluation && <EvaluationView ev={result.evaluation} retried={hasRetried} onRetry={() => (setRetrying(true), setText(""))} />}
+          {result.evaluation && <EvaluationView ev={result.evaluation} requirements={ex.requirements} retried={hasRetried} onRetry={() => (setRetrying(true), setText(""))} />}
           {explanation && !result.evaluation && <p className="text-sm text-muted-foreground">{explanation}</p>}
           {result.transcript && <TranscriptView lines={result.transcript} language={languageId} />}
           {result.modelAnswer && (

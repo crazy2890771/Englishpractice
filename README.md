@@ -74,6 +74,7 @@ tests/                 unit/ · integration/ · e2e/
 ## Learning engine: rules
 
 - **Placement** (`engine/placement.ts`): estimated separately for each of the 5 skills, and resumable.
+  - The learner first describes their level (never studied → confident); this only picks the first question's level.
   - Objective skills use a staircase: 2 items per level, plus a third if the first two are split. The test stops when the result is bracketed or after 12 items.
   - Speaking and writing are estimated from 2 rubric tasks.
   - Every result shows a confidence level and its limitations, and is labelled as an unofficial app estimate.
@@ -90,7 +91,8 @@ tests/                 unit/ · integration/ · e2e/
   | Sat | English + Chinese vocabulary and review |
 
   - "Today" is computed in the learner's time zone (default Asia/Bangkok).
-  - Missed lessons from the last 7 days are offered as optional make-ups, with no penalty.
+  - Missed lessons from the last 7 days (never from before the learner started that language) are offered as optional make-ups, with no penalty.
+  - Reminders: *Profile → Add to calendar* downloads an `.ics` file with one weekly recurring event per study day, at the chosen time, with an alarm.
   - Practice never counts as the scheduled lesson.
   - The schedule can be edited in Profile.
 - **Lesson flow** (`engine/planner.ts`): warm-up → skill blocks → corrections & retry → mini assessment.
@@ -98,7 +100,7 @@ tests/                 unit/ · integration/ · e2e/
   - Writing and speaking blocks always end with a production task.
   - Lessons autosave, can be paused and resumed, have previous/next navigation, track active time and end with a summary.
 - **Spaced repetition** (`engine/srs.ts`): SM-2 with documented adjustments.
-- **Weaknesses** (`engine/weakness.ts`): a category becomes *active* only after 3 or more mistakes in 21 days, across 2 or more exercises. It moves through watching → active → improving → resolved, based on mastery over recent tagged attempts.
+- **Weaknesses** (`engine/weakness.ts`): a category becomes *active* only after 3 or more mistakes in 21 days, across 2 or more exercises and on 2 or more different days (one bad lesson is not a pattern). It moves through watching → active → improving → resolved, based on mastery over recent tagged attempts.
 - **Progression** (`engine/progression.ts`):
   - A unit test unlocks after at least 4 practice items at 60% or more. The unit test passes at 70%.
   - A level exam unlocks once all units of the level are complete. To pass, all three must hold:
@@ -107,6 +109,7 @@ tests/                 unit/ · integration/ · e2e/
     - the mandatory performance task completed.
   - A failed exam creates a remediation plan. The required remediation sessions must be completed before a retake.
 - **Scoring**: objective questions are scored deterministically on the server, and answers never reach the client before submission. Open answers are rubric-scored by AI (validated JSON), or by the labelled demo evaluator. Pronunciation is never scored.
+  - The demo evaluator cannot read meaning: it caps "task completion" at 3/5, lowers it for answers that ignore the task's topic, shows a rough band instead of a percentage, and gives the learner a self-check list of the task's requirements.
 
 ## Status report (honest)
 
@@ -143,7 +146,7 @@ tests/                 unit/ · integration/ · e2e/
 ### Not implemented yet
 - Curriculum content for **English C2** and **HSK 5–9**. The levels exist in the framework, but the app shows "content coming" for them.
 - Pronunciation or phoneme-level assessment, and real-time voice conversation.
-- Delivery of study reminders. The reminder time is saved, but no notifications are sent.
+- Push notifications. Reminders work through the calendar (.ics) export instead.
 - Offline learning. The PWA is installable and shows an offline page, but lessons need a connection.
 - Recording upload has not been covered by an automated test.
 

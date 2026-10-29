@@ -37,7 +37,7 @@ export function ReviewClient({ items }: { items: (VocabCardData & { languageId: 
     <div className="mx-auto max-w-lg space-y-5">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">{L("ทบทวนคำศัพท์", "Vocabulary review")}</h1>
-        <p className="text-sm text-muted-foreground">{L("ระบบทวนซ้ำแบบเว้นระยะ (SM-2): คำที่จำได้จะกลับมาห่างขึ้น คำที่ลืมจะกลับมาเร็วขึ้น", "Spaced repetition (SM-2): words you know come back less often; forgotten words come back sooner.")}</p>
+        <p className="text-sm text-muted-foreground">{L("คำที่จำได้จะกลับมาให้ทบทวนห่างขึ้น คำที่ลืมจะกลับมาเร็วขึ้น", "Words you know come back less often; forgotten words come back sooner.")}</p>
       </header>
       {card ? (
         <>

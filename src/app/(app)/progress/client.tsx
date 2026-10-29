@@ -61,6 +61,7 @@ export function ProgressClient({ data, languages, categories, recordings }: { da
   const short = (d: string) => d.slice(5).replace("-", "/");
   const statusLabel: Record<string, [string, string]> = { watching: ["เฝ้าดู", "Watching"], active: ["ต้องฝึก", "Active"], improving: ["ดีขึ้น", "Improving"], resolved: ["แก้ได้แล้ว", "Resolved"] };
   const hasActivity = data.activity.some((a) => a.minutes > 0);
+  const hasSeries = Object.values(data.skillSeries).some((s) => s.length >= 2);
 
   return (
     <div className="space-y-6">
@@ -153,8 +154,13 @@ export function ProgressClient({ data, languages, categories, recordings }: { da
 
       <section aria-labelledby="skills-time" className="space-y-3">
         <h2 id="skills-time" className="font-semibold">{L("ความถูกต้องรายทักษะตามเวลา", "Skill accuracy over time")}</h2>
+        {!hasSeries ? (
+          <Card className="py-5">
+            <CardContent className="text-sm text-muted-foreground">{L("กราฟจะแสดงเมื่อคุณฝึกทักษะเดียวกันครบอย่างน้อย 2 วัน", "Charts appear once you have practised a skill on at least 2 different days.")}</CardContent>
+          </Card>
+        ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Object.entries(data.skillSeries).map(([skill, series]) => (
+          {Object.entries(data.skillSeries).filter(([, series]) => series.length > 0).map(([skill, series]) => (
             <Card key={skill} className="gap-2 py-4">
               <CardHeader>
                 <CardTitle className="text-sm">{sk(skill)}</CardTitle>
@@ -179,6 +185,7 @@ export function ProgressClient({ data, languages, categories, recordings }: { da
             </Card>
           ))}
         </div>
+        )}
       </section>
 
       <div className="grid gap-3 lg:grid-cols-2">
@@ -253,7 +260,7 @@ export function ProgressClient({ data, languages, categories, recordings }: { da
       <Card>
         <CardHeader>
           <CardTitle>{L("ติดตามจุดอ่อน", "Weakness tracker")}</CardTitle>
-          <CardDescription>{L("จุดอ่อนนับจากหลักฐานซ้ำ ๆ (ผิดอย่างน้อย 3 ครั้งใน 3 สัปดาห์ จาก 2 แบบฝึกขึ้นไป) ไม่ใช่จากความผิดพลาดครั้งเดียว", "A weakness needs repeated evidence (3+ mistakes in 3 weeks from 2+ exercises) — never a single slip.")}</CardDescription>
+          <CardDescription>{L("จุดอ่อนนับจากหลักฐานซ้ำ ๆ (ผิดอย่างน้อย 3 ครั้งใน 3 สัปดาห์ จาก 2 แบบฝึกขึ้นไป และอย่างน้อย 2 วัน) ไม่ใช่จากความผิดพลาดครั้งเดียว", "A weakness needs repeated evidence (3+ mistakes in 3 weeks, from 2+ exercises, on 2+ days) — never a single slip.")}</CardDescription>
         </CardHeader>
         <CardContent>
           {data.weaknesses.length ? (

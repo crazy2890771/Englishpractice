@@ -75,6 +75,30 @@ export function requiredTokens(requirements: string[]) {
   return out;
 }
 
+const EN_STOP = new Set("a an the and or but to of in on at for with from about your you yourself write short answer sentence sentences words word using use what where when which who how why this that these those some any each every more most other into than then them they their there here have has had will would should could can make tell give say describe explain".split(" "));
+
+/**
+ * How much of the task's content vocabulary the answer picks up (0..1), or null when the task has
+ * too few content words to judge. A cheap, transparent proxy for "did you answer this task?" —
+ * the demo evaluator cannot understand meaning, so it only uses this to LOWER task completion.
+ */
+export function taskRelevance(language: LanguageId, task: string, requirements: string[], text: string): number | null {
+  if (language === "zh") {
+    const han = (s: string) => new Set([...s].filter((c) => /[㐀-鿿]/.test(c) && !"的了是我你他她们在有不和也就很吗呢吧这那个".includes(c)));
+    const k = han(`${task} ${requirements.join(" ")}`);
+    if (k.size < 4) return null;
+    const t = han(text);
+    return [...k].filter((c) => t.has(c)).length / k.size;
+  }
+  const words = (s: string) => (s.toLowerCase().match(/[a-z]{3,}/g) ?? []).filter((w) => !EN_STOP.has(w));
+  const keys = [...new Set(words(`${task} ${requirements.join(" ")}`))];
+  if (keys.length < 4) return null;
+  const answer = words(text);
+  const stem = (w: string) => w.slice(0, Math.max(3, Math.min(5, w.length - 1)));
+  const stems = new Set(answer.map(stem));
+  return keys.filter((k) => stems.has(stem(k))).length / keys.length;
+}
+
 /**
  * DEMO evaluator — transparent heuristics + conservative rule checks. Labelled in the UI as
  * "demo feedback (rule-based, not AI)". It never claims to assess pronunciation.
@@ -83,6 +107,8 @@ export function demoEvaluate(input: {
   language: LanguageId;
   kind: OpenKind;
   text: string;
+  /** The task prompt — used only to detect off-topic answers. */
+  task?: string;
   minLength: number;
   requirements: string[];
   targetWords?: string[];
@@ -121,6 +147,12 @@ export function demoEvaluate(input: {
   const tokensHit = tokensReq.filter((t) => text.includes(t)).length;
   let task = lengthRatio >= 1 ? 4 : lengthRatio >= 0.7 ? 3 : lengthRatio >= 0.4 ? 2 : 1;
   if (tokensReq.length) task += tokensHit === tokensReq.length ? 1 : tokensHit === 0 ? -1 : 0;
+  // Rules cannot verify content, so the demo never awards more than "3 — partly answers the task"
+  // unless every required word is present, and an answer that ignores the task's topic scores low.
+  const relevance = input.task ? taskRelevance(language, input.task, input.requirements, text) : null;
+  task = Math.min(task, tokensReq.length && tokensHit === tokensReq.length ? 4 : 3);
+  if (relevance !== null && relevance < 0.2) task = Math.min(task, 1);
+  else if (relevance !== null && relevance < 0.35) task = Math.min(task, 2);
   task = clamp(task);
 
   let criteria: Record<string, number>;
@@ -145,8 +177,8 @@ export function demoEvaluate(input: {
     mistakes: rules.items,
     correctedVersion: rules.corrected,
     comment: th
-      ? `ฟีดแบ็กโหมดเดโม (ตรวจด้วยกฎ ไม่ใช่ AI): ${len} ${language === "zh" ? "ตัวอักษร" : "คำ"} · พบข้อผิดพลาดที่พบบ่อย ${rules.items.length} จุด${lengthRatio < 1 ? ` · ควรยาวอย่างน้อย ${input.minLength}` : ""}`
-      : `Demo feedback (rule-based, not AI): ${len} ${language === "zh" ? "characters" : "words"} · ${rules.items.length} common error(s) found${lengthRatio < 1 ? ` · aim for at least ${input.minLength}` : ""}`,
+      ? `ฟีดแบ็กโหมดเดโม (ตรวจด้วยกฎ ไม่ใช่ AI): ${len} ${language === "zh" ? "ตัวอักษร" : "คำ"} · พบข้อผิดพลาดที่พบบ่อย ${rules.items.length} จุด${lengthRatio < 1 ? ` · ควรยาวอย่างน้อย ${input.minLength}` : ""}${relevance !== null && relevance < 0.35 ? " · คำตอบอาจยังไม่ตรงโจทย์ — ลองตอบให้ครบทุกข้อที่โจทย์ถาม" : ""}`
+      : `Demo feedback (rule-based, not AI): ${len} ${language === "zh" ? "characters" : "words"} · ${rules.items.length} common error(s) found${lengthRatio < 1 ? ` · aim for at least ${input.minLength}` : ""}${relevance !== null && relevance < 0.35 ? " · your answer may not address the task — cover every point it asks for" : ""}`,
     retryPrompt: first
       ? th
         ? `ลองพูด/เขียนประโยคของคุณใหม่ โดยแก้ “${first.original}” ให้ถูกต้อง`
@@ -155,7 +187,7 @@ export function demoEvaluate(input: {
         ? "ลองตอบอีกครั้งโดยเพิ่มรายละเอียดอีก 1–2 อย่าง"
         : "Try again and add one or two more details.",
     pronunciation: null,
-    limitations: ["demo_evaluator", "rules_cover_common_errors_only", ...(kind === "speaking" ? ["no_pronunciation_assessment"] : [])],
+    limitations: ["demo_evaluator", "rules_cover_common_errors_only", "content_not_verified", ...(kind === "speaking" ? ["no_pronunciation_assessment"] : [])],
     meetsLength: len >= input.minLength,
   };
 }

@@ -37,6 +37,8 @@ export interface SessionState {
 }
 
 const EXAM_KINDS = new Set(["unit_assessment", "level_exam"]);
+const clip = (t: string, max = 90) => (t.length > max ? `${t.slice(0, max - 1)}…` : t);
+
 export const isExamKind = (kind: string) => EXAM_KINDS.has(kind);
 
 /* ───────────────────────── Creation ───────────────────────── */
@@ -349,7 +351,16 @@ export async function submitAnswer(
     correct = objective.correct;
     feedback = { expected: objective.expected, diff: objective.diff };
     if (!correct) {
-      const given = "text" in input.response ? input.response.text : "transcript" in input.response ? input.response.transcript : "choice" in input.response && ex.type === "mcq" ? ex.options[input.response.choice] ?? "" : "";
+      const r = input.response;
+      const joiner = language === "zh" ? "" : " ";
+      const given =
+        "text" in r ? r.text
+        : "transcript" in r ? r.transcript
+        : "choice" in r && ex.type === "mcq" ? (ex.options[r.choice] ?? "")
+        : "bool" in r ? (r.bool ? "True" : "False")
+        : "order" in r ? r.order.join(joiner)
+        : "pairs" in r ? Object.entries(r.pairs).map(([l, v]) => `${l} → ${v}`).join(", ")
+        : "";
       mistakes.push({ original: given || "—", corrected: objective.expected, explanation: ex.explanationTh, tag: ex.tags[0]! });
     }
   } else {
@@ -464,7 +475,22 @@ export async function completeSession(tx: Tx, learner: Learner, sessionId: strin
     mistakes: attempts.filter((a) => !a.isCorrect).length,
     vocabReviewed: Object.keys(st.vocabDone ?? {}).length,
     minutes: Math.round(s.activeSeconds / 60),
+    seconds: s.activeSeconds,
   };
+  // What to take away: the lesson's words and the mistakes worth remembering (exams excluded — no answers shown).
+  if (!isExamKind(s.kind)) {
+    const lessonUnit = s.unitId ? getUnit(s.unitId) : null;
+    summary.words = (lessonUnit?.vocabulary ?? []).slice(0, 8).map((v) => ({ word: v.word, pronunciation: v.pronunciation ?? null, meaning: v.meaningTh }));
+    const attemptIds = attempts.filter((a) => !a.isCorrect).map((a) => a.id);
+    const mistakes = attemptIds.length
+      ? await tx.select().from(schema.mistakeRecords).where(and(eq(schema.mistakeRecords.userId, learner.id), inArray(schema.mistakeRecords.attemptId, attemptIds))).limit(20)
+      : [];
+    const seen = new Set<string>();
+    summary.mistakesList = mistakes
+      .filter((m) => m.original !== "—" && !seen.has(m.corrected) && seen.add(m.corrected))
+      .slice(0, 5)
+      .map((m) => ({ original: clip(m.original), corrected: clip(m.corrected), explanation: m.explanation }));
+  }
 
   const language = s.languageId as LanguageId;
   if (s.kind === "unit_assessment") {
@@ -553,6 +579,16 @@ export async function completeSession(tx: Tx, learner: Learner, sessionId: strin
         target: [schema.progressSnapshots.userId, schema.progressSnapshots.languageId, schema.progressSnapshots.skill, schema.progressSnapshots.snapshotDate],
         set: { accuracy: acc, attempts: today.length || v.n, levelCode: lvl },
       });
+  }
+
+  // One concrete next step for the learner.
+  if (!isExamKind(s.kind) && s.kind !== "remediation") {
+    const readyRows = s.unitId
+      ? await tx.select().from(schema.unitProgress).where(and(eq(schema.unitProgress.userId, learner.id), eq(schema.unitProgress.unitId, s.unitId), eq(schema.unitProgress.status, "ready")))
+      : [];
+    const ready = readyRows.find((r) => s.skills.includes(r.skill));
+    const due = await dueVocabulary(tx, learner.id, language, 1);
+    summary.next = ready ? { type: "unit_test", unitId: ready.unitId, skill: ready.skill } : due.length ? { type: "review" } : { type: "done" };
   }
 
   await tx.update(schema.studySessions).set({ status: "completed", completedAt: new Date(), summary }).where(eq(schema.studySessions.id, s.id));

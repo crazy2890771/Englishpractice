@@ -9,11 +9,12 @@ import { errorText } from "@/i18n";
 import { DURATIONS } from "@/engine/schedule";
 
 /** Creates a session (scheduled / practice / makeup / review) and opens it. */
-export function StartSession({ language, skills, kind, scheduledDate, defaultMinutes, label, variant = "default", showDuration = true }: { language: string; skills: string[]; kind: "scheduled" | "practice" | "makeup" | "review"; scheduledDate?: string; defaultMinutes: number; label?: string; variant?: "default" | "outline" | "secondary"; showDuration?: boolean }) {
+export function StartSession({ language, skills, kind, scheduledDate, defaultMinutes, minutes: fixedMinutes, label, variant = "default", showDuration = true, size }: { language: string; skills: string[]; kind: "scheduled" | "practice" | "makeup" | "review"; scheduledDate?: string; defaultMinutes: number; /** Controlled duration (hides the selector). */ minutes?: number; label?: string; variant?: "default" | "outline" | "secondary"; showDuration?: boolean; size?: "default" | "sm" }) {
   const L = useL();
   const router = useRouter();
   const { uiLang } = usePrefs();
-  const [minutes, setMinutes] = useState(defaultMinutes);
+  const [chosen, setMinutes] = useState(defaultMinutes);
+  const minutes = fixedMinutes ?? chosen;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,10 +35,10 @@ export function StartSession({ language, skills, kind, scheduledDate, defaultMin
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={start} disabled={busy} variant={variant}>
+        <Button onClick={start} disabled={busy} variant={variant} size={size}>
           {busy ? <Loader2 className="animate-spin" /> : <Play />} {label ?? L("เริ่มเรียน", "Start learning")}
         </Button>
-        {showDuration && (
+        {showDuration && fixedMinutes === undefined && (
           <>
             <label htmlFor={`dur-${language}-${skills.join()}`} className="sr-only">
               {L("ระยะเวลา", "Duration")}

@@ -47,3 +47,19 @@ describe("demo evaluator", () => {
     expect(scoreFromCriteria({ a: 5, b: 3 }, ["a", "b"])).toBe(0.8);
   });
 });
+
+describe("demo evaluator: task relevance", () => {
+  const task = "Write a short introduction about yourself for a new English class. Write your name, age, where you are from, where you live and your job.";
+  const offTopic = "I live in Bangkok and I like my city because it is friendly and busy. Every weekend I walk in the park with my friends, and then we eat noodles together. However, the traffic is bad, so I usually take the train to work.";
+  const onTopic = "Hello, my name is Mali and I am 28 years old. I am from Chiang Mai, but now I live in Bangkok. My job is nurse at a hospital, and I want to improve my English for this class because I talk to many patients.";
+  const ev = (text: string) => demoEvaluate({ language: "en", kind: "writing", text, task, minLength: 30, requirements: [], explanationLanguage: "th" });
+
+  it("scores an off-topic answer lower on task completion than an on-topic one", () => {
+    expect(ev(offTopic).criteria.task_completion).toBeLessThan(ev(onTopic).criteria.task_completion!);
+    expect(ev(offTopic).comment).toMatch(/ไม่ตรงโจทย์/);
+  });
+  it("never gives full task completion from rules alone", () => {
+    expect(ev(onTopic).criteria.task_completion).toBeLessThanOrEqual(3);
+    expect(ev(onTopic).limitations).toContain("content_not_verified");
+  });
+});

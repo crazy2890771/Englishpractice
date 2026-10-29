@@ -41,7 +41,7 @@ export default async function PlacementPage({ params }: { params: Promise<{ lang
           detail: s.detail as { belowFirstLevel?: boolean; atCeiling?: boolean; itemsAnswered?: number } | null,
           evaluator: s.evaluator,
         }))}
-        recommendations={rec.recs.map((r) => ({ skill: r.skill, level: r.level, unit: r.unit ? { id: r.unit.id, title: r.unit.title, titleTh: r.unit.titleTh } : null }))}
+        recommendations={rec.recs.map((r) => ({ skill: r.skill, level: r.level, fromOtherSkills: r.fromOtherSkills, unit: r.unit ? { id: r.unit.id, title: r.unit.title, titleTh: r.unit.titleTh } : null }))}
         priorities={{ skills: rec.priorities.skills, tags: rec.priorities.tags.map(tagName) }}
       />
     );

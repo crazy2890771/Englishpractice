@@ -47,8 +47,14 @@ async function fillCurrent(page: Page, text: string) {
   const radios = main.getByRole("radio");
   if (await radios.count()) await radios.first().click();
 
-  const selects = main.locator("select:not([id^=dur-])");
-  for (let i = 0; i < (await selects.count()); i++) await selects.nth(i).selectOption({ index: i + 1 }).catch(() => selects.nth(i).selectOption({ index: 1 }));
+  const leftCol = main.getByTestId("match-left");
+  if (await leftCol.count()) {
+    const n = await leftCol.getByRole("button").count();
+    for (let i = 0; i < n; i++) {
+      await leftCol.getByRole("button").nth(i).click();
+      await main.getByTestId("match-right").getByRole("button").nth(i).click();
+    }
+  }
 
   const bank = main.getByTestId("token-bank");
   if (await bank.count()) {

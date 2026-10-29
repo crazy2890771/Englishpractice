@@ -64,15 +64,12 @@ export default async function LearnPage({ params }: { params: Promise<{ lang: st
         <>
           <section aria-labelledby="tracks" className="space-y-3">
             <h2 id="tracks" className="text-sm font-medium text-muted-foreground">{L("ระดับปัจจุบันแต่ละทักษะ", "Current level by skill")}</h2>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
               {o.tracks.map((t) => (
-                <Card key={t.skill} className="gap-1 py-4">
-                  <CardContent>
-                    <p className="text-xs text-muted-foreground">{sk(t.skill)}</p>
-                    <p className="text-xl font-semibold">{t.level ?? "—"}</p>
-                    <p className="truncate text-xs text-muted-foreground">{t.unit ? L(t.unit.titleTh, t.unit.title) : L("ยังไม่มีเนื้อหาระดับถัดไป", "Next level content coming")}</p>
-                  </CardContent>
-                </Card>
+                <div key={t.skill} className="rounded-xl border bg-card px-3 py-2.5" title={t.unit ? L(t.unit.titleTh, t.unit.title) : undefined}>
+                  <p className="text-[11px] text-muted-foreground">{sk(t.skill)}</p>
+                  <p className="text-lg font-semibold leading-tight">{t.level ?? "—"}</p>
+                </div>
               ))}
             </div>
           </section>
@@ -127,11 +124,13 @@ export default async function LearnPage({ params }: { params: Promise<{ lang: st
             </section>
           )}
 
-          {o.levels.map((level) => (
-            <section key={level} aria-labelledby={`lv-${level}`} className="space-y-3">
-              <h2 id={`lv-${level}`} className="text-lg font-semibold">
-                {m.levels.find((l) => l.code === level)?.nameTh && L(m.levels.find((l) => l.code === level)!.nameTh, level)}
-              </h2>
+          {o.levels.map((level) => {
+            const levelUnits = o.units.filter((u) => u.level === level);
+            // Only the learner's current level(s) are expanded; others stay folded to keep the page short.
+            const current = o.tracks.some((t) => t.level === level);
+            const unlocked = levelUnits.filter((u) => u.unlocked).length;
+            const title = m.levels.find((l) => l.code === level)?.nameTh ? L(m.levels.find((l) => l.code === level)!.nameTh, level) : level;
+            const grid = (
               <div className="grid gap-3 sm:grid-cols-2">
                 {o.units
                   .filter((u) => u.level === level)
@@ -167,8 +166,25 @@ export default async function LearnPage({ params }: { params: Promise<{ lang: st
                     );
                   })}
               </div>
-            </section>
-          ))}
+            );
+            return current ? (
+              <section key={level} aria-labelledby={`lv-${level}`} className="space-y-3">
+                <h2 id={`lv-${level}`} className="text-lg font-semibold">{title}</h2>
+                {grid}
+              </section>
+            ) : (
+              <details key={level} className="group rounded-2xl border bg-card/60">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+                  <span className="font-medium">{title}</span>
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    {unlocked === 0 && <Lock className="size-3.5" aria-hidden />}
+                    {L(`${levelUnits.length} หน่วย`, `${levelUnits.length} units`)}
+                  </span>
+                </summary>
+                <div className="px-3 pb-3">{grid}</div>
+              </details>
+            );
+          })}
           <p className="text-xs text-muted-foreground">{L("ระดับที่สูงกว่านี้จะเพิ่มเนื้อหาในอนาคต", "Higher levels will get content in future updates.")}</p>
         </>
       )}

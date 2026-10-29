@@ -4,7 +4,7 @@ import { asUser, schema } from "@/db";
 import { getExercise } from "@/content";
 import type { Skill } from "@/content/types";
 import type { Learner } from "@/server/learner";
-import { startFromBeginning } from "@/server/placement";
+import { nextPlacementItem, startFromBeginning, startPlacement } from "@/server/placement";
 import { completeSession, createLessonSession, createLevelExam, createUnitAssessment, effectiveActivities, levelExamEligibility, sessionView, submitAnswer } from "@/server/sessions";
 import { getSkillProgress } from "@/server/curriculum";
 import { todayView } from "@/server/today";
@@ -60,6 +60,25 @@ describe.skipIf(!up)("learning flow (server services against the real database)"
     await expect(asUser(learner.id, (tx) => createLessonSession(tx, learner, { language: "en", skills: ["reading"], minutes: 30, kind: "practice" }))).rejects.toMatchObject({ code: "needs_placement" });
   });
 
+  it("a brand-new learner has no 'missed' lessons from before they joined, and sees goal + streak", async () => {
+    await asUser(learner.id, (tx) => startFromBeginning(tx, learner.id, "en"));
+    const view = await asUser(learner.id, (tx) => todayView(tx, learner));
+    expect(view.missed).toEqual([]);
+    expect(view.goal).toMatchObject({ minutes: 30, doneMinutes: 0, streak: 0 });
+    expect(view.resume).toBeNull();
+  });
+
+  it("the self-report picks the first placement question's level", async () => {
+    const a = await asUser(other.id, (tx) => startPlacement(tx, other.id, "en", "none"));
+    const item = await asUser(other.id, (tx) => nextPlacementItem(tx, other.id, a.id, "reading"));
+    expect((item as { exercise: { level?: string } }).exercise).toBeTruthy();
+    const rows = await asUser(other.id, (tx) => tx.select().from(schema.placementSkillResults).where(eq(schema.placementSkillResults.assessmentId, a.id)));
+    expect((rows.find((r) => r.skill === "reading")!.state as { levelIdx: number }).levelIdx).toBe(0);
+    expect((rows.find((r) => r.skill === "writing")!.state as { levelIdx: number }).levelIdx).toBe(0);
+    // Clean up so the later "start from the beginning" path isn't affected.
+    await asUser(other.id, (tx) => tx.delete(schema.placementAssessments).where(eq(schema.placementAssessments.id, a.id)));
+  });
+
   it("stores English and Chinese levels separately", async () => {
     await asUser(learner.id, (tx) => startFromBeginning(tx, learner.id, "en"));
     await asUser(learner.id, (tx) => startFromBeginning(tx, learner.id, "zh"));
@@ -92,8 +111,11 @@ describe.skipIf(!up)("learning flow (server services against the real database)"
     expect(effectiveActivities(after).find((a) => a.type === "corrections")!.items.map((i) => (i as { exerciseId: string }).exerciseId)).toContain(firstObjective);
 
     const { summary } = await runSession(learner, s.id);
-    const sum = summary as { answered: number; accuracy: number; retries: number };
+    const sum = summary as { answered: number; accuracy: number; retries: number; words: unknown[]; mistakesList: unknown[]; next: { type: string } };
     expect(sum.answered).toBeGreaterThan(3);
+    expect(sum.words.length).toBeGreaterThan(0);
+    expect(sum.mistakesList.length).toBeGreaterThanOrEqual(1);
+    expect(["unit_test", "review", "done"]).toContain(sum.next.type);
     expect(sum.retries).toBeGreaterThanOrEqual(1);
     // The scheduled lesson is now done: it is not offered as a make-up.
     const view2 = await asUser(learner.id, (tx) => todayView(tx, learner, new Date("2026-03-03T03:00:00Z")));
