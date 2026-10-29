@@ -1,58 +1,68 @@
 import { describe, expect, it } from "vitest";
-import { heuristicTurnFeedback, heuristicWritingFeedback, lexicalDiversity, scoreSpeaking, scoreWriting } from "@/lib/feedback/heuristics";
-import { turnFeedbackSchema, writingFeedbackSchema } from "@/lib/ai/schemas";
-import { estimatedLevel, overallPercent, sectionPercent } from "@/lib/assessment";
+import { align, normalizeEn, normalizeZh, responseLength, scoreObjective, stripTones, tokens } from "@/engine/scoring";
+import type { Exercise } from "@/content/types";
 
-describe("heuristic scoring", () => {
-  it("gives higher grammar bands to error-free answers", () => {
-    const clean = scoreSpeaking("I usually get up at seven, have a quick coffee and walk to the station.", { errors: 0 });
-    const messy = scoreSpeaking("I usually get up at seven, have a quick coffee and walk to the station.", { errors: 3 });
-    expect(clean.grammar).toBeGreaterThan(messy.grammar);
+const base = { id: "t", skill: "reading", level: "A1", tags: [], prompt: "p", explanation: "e" } as const;
+
+describe("normalisation", () => {
+  it("treats contractions, case and punctuation as equal in English", () => {
+    expect(normalizeEn("I'm GOING home!")).toBe(normalizeEn("i am going home"));
+    expect(normalizeEn("can't")).toBe(normalizeEn("cannot"));
+    expect(normalizeEn("won't")).toBe(normalizeEn("will not"));
   });
-
-  it("rewards longer, developed answers for fluency", () => {
-    const short = scoreSpeaking("Yes, I like it.", { errors: 0 });
-    const long = scoreSpeaking(
-      "Yes, I really like it because it helps me relax after work. Usually I go running in the park near my flat, and at weekends I sometimes join a group of friends for a longer run along the river.",
-      { errors: 0 },
-    );
-    expect(long.fluency).toBeGreaterThan(short.fluency);
-    expect(long.taskCompletion).toBeGreaterThanOrEqual(short.taskCompletion);
+  it("ignores Chinese punctuation and spaces", () => {
+    expect(normalizeZh("我是 学生。")).toBe(normalizeZh("我是学生"));
   });
-
-  it("is deterministic (same input → same scores)", () => {
-    const t = "Last summer I travelled to Japan with my sister and we visited Kyoto.";
-    expect(scoreSpeaking(t, { errors: 0 })).toEqual(scoreSpeaking(t, { errors: 0 }));
+  it("strips pinyin tone marks", () => {
+    expect(stripTones("nǐ hǎo")).toBe("ni hao");
   });
-
-  it("lexical diversity is 0 for empty text", () => {
-    expect(lexicalDiversity("")).toBe(0);
-  });
-
-  it("writing: under-length text gets lower task completion", () => {
-    const shortText = "Hi Tom, I am fine. See you soon.";
-    const s = scoreWriting(shortText, { errors: 0, minWords: 100, maxWords: 150, type: "email" });
-    expect(s.taskCompletion).toBe(1);
-  });
-
-  it("produces schema-valid feedback objects", () => {
-    expect(turnFeedbackSchema.safeParse(heuristicTurnFeedback("She don't like it.", { question: "Does your sister like coffee?" })).success).toBe(true);
-    expect(
-      writingFeedbackSchema.safeParse(heuristicWritingFeedback("Dear Sir, I am writing to ask about the room. However, I have a question.", { minWords: 100, maxWords: 150, type: "email" })).success,
-    ).toBe(true);
+  it("tokenises Chinese per character", () => {
+    expect(tokens("zh", "你好吗")).toEqual(["你", "好", "吗"]);
   });
 });
 
-describe("assessment aggregation", () => {
-  it("converts bands to percentages consistently", () => {
-    expect(sectionPercent({ a: 5, b: 5 })).toBe(100);
-    expect(sectionPercent({ a: 3, b: 2 })).toBe(50);
-    expect(overallPercent({ speaking: 60, listening: 75, writing: 45 })).toBe(60);
+describe("align", () => {
+  it("scores identical sequences 1", () => {
+    expect(align(["a", "b", "c"], ["a", "b", "c"]).accuracy).toBe(1);
   });
-  it("maps overall percentages to rough levels", () => {
-    expect(estimatedLevel(30)).toBe("A2");
-    expect(estimatedLevel(50)).toBe("B1");
-    expect(estimatedLevel(65)).toBe("B1+");
-    expect(estimatedLevel(80)).toBe("B2");
+  it("penalises missing and extra words", () => {
+    const r = align(["i", "like", "green", "tea"], ["i", "like", "tea", "very"]);
+    expect(r.accuracy).toBeLessThan(1);
+    expect(r.accuracy).toBeGreaterThan(0);
+  });
+});
+
+describe("scoreObjective", () => {
+  it("scores multiple choice deterministically", () => {
+    const ex = { ...base, type: "mcq", options: ["a", "b"], answer: 1 } as unknown as Exercise;
+    expect(scoreObjective("en", ex, { choice: 1 })!.correct).toBe(true);
+    expect(scoreObjective("en", ex, { choice: 0 })!.score).toBe(0);
+  });
+  it("accepts any listed answer for fill-blank, ignoring case", () => {
+    const ex = { ...base, type: "fill_blank", text: "I ___ tea.", answers: ["like", "love"] } as unknown as Exercise;
+    expect(scoreObjective("en", ex, { text: "Love" })!.correct).toBe(true);
+    expect(scoreObjective("en", ex, { text: "" })!.correct).toBe(false);
+  });
+  it("gives partial credit for sentence order prefixes", () => {
+    const ex = { ...base, type: "sentence_order", tokens: ["I", "am", "a", "student"] } as unknown as Exercise;
+    expect(scoreObjective("en", ex, { order: ["I", "am", "a", "student"] })!.score).toBe(1);
+    const partial = scoreObjective("en", ex, { order: ["I", "am", "student", "a"] })!;
+    expect(partial.correct).toBe(false);
+    expect(partial.score).toBe(0.5);
+  });
+  it("scores match pairs proportionally", () => {
+    const ex = { ...base, type: "match_pairs", pairs: [["a", "1"], ["b", "2"]] } as unknown as Exercise;
+    expect(scoreObjective("en", ex, { pairs: { a: "1", b: "1" } })!.score).toBe(0.5);
+  });
+  it("returns null for open tasks (rubric evaluation)", () => {
+    const ex = { ...base, type: "open_writing", minLength: 20, requirements: [] } as unknown as Exercise;
+    expect(scoreObjective("en", ex, { text: "hello" })).toBeNull();
+  });
+});
+
+describe("responseLength", () => {
+  it("counts words in English and Han characters in Chinese", () => {
+    expect(responseLength("en", "I like green tea")).toBe(4);
+    expect(responseLength("zh", "我喜欢喝茶。ok")).toBe(5);
   });
 });

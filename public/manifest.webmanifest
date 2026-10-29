@@ -1,17 +1,18 @@
 {
-  "name": "English Fluency Lab",
+  "name": "Fluency Lab — Your Personal Language Academy",
   "short_name": "Fluency Lab",
-  "description": "Improve English speaking, listening, writing and pronunciation in 30 days.",
-  "start_url": "/dashboard",
+  "description": "English (CEFR A1–C2) and Mandarin Chinese (HSK) — placement, weekly schedule, lessons, review and progress.",
+  "lang": "th",
+  "start_url": "/today",
   "scope": "/",
   "display": "standalone",
-  "orientation": "any",
-  "background_color": "#070b1c",
-  "theme_color": "#070b1c",
+  "orientation": "portrait",
+  "background_color": "#faf9f6",
+  "theme_color": "#faf9f6",
   "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml" },
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
-    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

@@ -1,150 +1,152 @@
-# English Fluency Lab
+# Fluency Lab: Your Personal Language Academy
 
-A 30-day, 60-minutes-a-day English program for intermediate (B1–B2) learners, built with Next.js, TypeScript, Tailwind CSS, PostgreSQL/Prisma and Recharts. It trains **speaking, listening, writing, pronunciation (shadowing) and conversational confidence**, with structured AI feedback, spaced-repetition review and progress analytics.
+A mobile-first PWA for learning **English** (CEFR A1–C2 framework) and **Mandarin Chinese** (HSK 3.0, levels 1–9 framework) on a fixed weekly schedule. It covers placement, lessons, spaced repetition, weakness tracking, unit tests, level exams with remediation, an AI tutor and a progress dashboard. The UI is in Thai, with English optional.
 
-It runs fully in **demo mode with no API keys** (rule-based feedback + browser speech), and switches to **live AI mode** when server-side provider keys are configured.
+> **ภาษาไทยโดยสรุป:** แอปเรียนภาษาอังกฤษและภาษาจีนกลางบนมือถือ มีแบบทดสอบวัดระดับแยกตามทักษะ ตารางเรียนรายสัปดาห์ บทเรียน ทบทวนคำศัพท์ (SRS) ติดตามจุดอ่อน สอบประจำหน่วยและสอบเลื่อนระดับ ครูติวเตอร์ AI และหน้าพัฒนาการ ใช้งานได้โดยไม่ต้องมี API key: ข้อปรนัยตรวจได้จริง ส่วนงานพูด/เขียนจะได้ฟีดแบ็ก "โหมดเดโม" ที่ตรวจด้วยกฎ ซึ่งมีป้ายบอกชัดเจนว่าไม่ใช่ AI
 
----
+## Stack
 
-## Features
-
-| Area | What you get |
+| Layer | Choice |
 |---|---|
-| **AI Speaking Partner** | Turn-based voice conversations on daily life, hobbies, travel, work, aviation and interviews. One question at a time, adaptive follow-ups, original → corrected → natural version, short explanations, scores, “Save to Mistakes”, optional interruption-free mode. |
-| **Listening Challenge** | 60 dialogues (standard + challenge per day) in US/UK/Australian/Indian accents, adjustable speed, audio-first with transcript revealed after answering, MCQ / fill-in / inference questions with explanations, adaptive difficulty. |
-| **Writing Coach** | Daily 100–150-word prompts (diary, opinion, email, story, professional), highlighted errors, corrections, natural rewrite, rubric scores, recurring weaknesses, saved history. |
-| **Real-Life Roleplay** | 12 scenarios (interviews, hotels, airports, colleagues, customer service, aviation) with in-character AI, objectives, difficulty filter and an end-of-scenario rating for appropriateness, clarity and naturalness. |
-| **Shadowing Trainer** | Model audio → record → word-level comparison (missed / different / extra words) and a pace estimate. Honest about limits: it's speech-recognition based, **not** a phoneme-level pronunciation score. |
-| **Mistake Review** | Mistakes from every mode collected automatically, grouped by grammar / vocabulary / pronunciation / expression, reviewed with SM-2 spaced repetition. **Mastered only after 3 successful reviews spread over days.** |
-| **30-day program** | 30 unique lessons in 4 weeks (Foundation → Natural Communication → Real-World English → Fluency Challenge), each with objectives, speaking, listening, writing, shadowing, vocabulary, review tasks and completion criteria. |
-| **Assessments** | Day 1 baseline and Day 30 final use the **same tasks, rubric and scorer**, so the comparison is fair. |
-| **Progress** | Study time, streaks, weekly activity, skill estimates, trends, weekly reports, Day 1 vs Day 30 radar chart. |
+| App | Next.js 16 (App Router, `src/proxy.ts`), React 19, TypeScript |
+| UI | Tailwind CSS 4, shadcn-style components (Radix), lucide icons, Recharts, IBM Plex Sans Thai + Inter |
+| Data | Supabase Postgres + Auth + Storage; Drizzle ORM; **row-level security on every table** |
+| AI | Provider abstraction: Anthropic (Claude) or any OpenAI-compatible API; zod-validated JSON output |
+| Speech | OpenAI Whisper STT / TTS when configured; otherwise the browser's Web Speech API; typing is always possible |
+| Tests | Vitest (unit + integration against real Postgres), Playwright (mobile + desktop E2E) |
 
-### The 15 pages
+## Quick start (local)
 
-`/welcome` (+ `/onboarding`, `/login`, `/register`) · `/assessment` · `/dashboard` · `/calendar` · `/lesson/[day]` · `/speaking` · `/listening` · `/writing` · `/roleplay` · `/shadowing` · `/mistakes` · `/vocabulary` · `/progress` · `/progress/compare` · `/settings`
-
-### Daily flow (60 min)
-
-Speaking 20 → Listening 15 → Writing 10 → Shadowing 10 → Mistake review 5, with a session timer (pause/resume), step progress, save-and-resume and a daily completion summary.
-
-**Completion is evidence-based, never time-based.** The server checks the database for each step: e.g. *N learner turns in today's conversation*, *a listening score ≥ the pass mark (or two full attempts)*, *a submission of ≥ 100 words*, *all 5 shadowing sentences attempted*, *5 review items done (or an empty queue)*.
-
----
-
-## Quick start
-
-Requirements: **Node 20+** (22 recommended) and **PostgreSQL 14+**.
+Requirements: Node 20+, Docker (for the local Supabase stack).
 
 ```bash
-git clone <repo> && cd english-fluency-lab
-cp .env.example .env            # set DATABASE_URL and SESSION_SECRET
-npm install                     # also runs `prisma generate`
-npx prisma migrate deploy       # create tables
-npm run db:seed                 # optional: demo login demo@fluencylab.local / fluency-demo-2026
-npm run dev                     # http://localhost:3000
+npm install
+npm run db:start            # starts local Supabase and prints the API URL + anon key
+npm run db:reset            # applies supabase/migrations (schema, RLS, auth trigger, storage bucket)
+cp .env.example .env.local  # paste the anon key printed by db:start
+npm run db:seed             # loads the curriculum (24 units, 45 level exams, placement banks)
+npm run dev                 # http://localhost:3000
 ```
 
-Click **Try the demo** on the welcome page for an instant private demo account, or create a normal account.
+Sign in with **"ลองใช้โดยไม่สมัคร · Try without an account"** (Supabase anonymous sign-in), or create an email account. A guest can attach an email later in *Profile*.
 
-> Microphone access requires HTTPS (or `localhost`). On a phone, test against a deployed HTTPS URL or a tunnel.
+To enable real AI feedback, set `ANTHROPIC_API_KEY` and/or `OPENAI_API_KEY` in `.env.local`. `OPENAI_API_KEY` also enables server speech-to-text and text-to-speech.
 
-### Local PostgreSQL in one line (Docker)
+## Scripts
 
-```bash
-docker run -d --name efl-db -e POSTGRES_USER=efl -e POSTGRES_PASSWORD=efl -e POSTGRES_DB=efl -p 5432:5432 postgres:16
-```
-
----
-
-## Demo mode vs live AI mode
-
-| | Demo mode (no keys) | Live mode |
-|---|---|---|
-| Feedback | Deterministic rule-based checker for ~30 common B1–B2 errors (designed **not** to over-correct) + measurable rubric heuristics | LLM (Anthropic Claude or any OpenAI-compatible API) returning JSON validated with Zod |
-| Conversation | Lesson-scripted questions, elaboration prompts for short answers; roleplay characters follow scripted lines | Fully adaptive, in-character |
-| Speech-to-text | Browser Web Speech API where available, otherwise typing | Server-side Whisper (OpenAI-compatible) |
-| Text-to-speech | Browser `speechSynthesis` voices by accent | Server TTS with a shared DB cache |
-
-Everything shown in demo mode is labelled **“Demo · rule-based”**. In live mode nothing is fabricated: if a provider fails, the user sees an error with **Retry** (their text is kept) and can always fall back to typing or reading.
-
-### Configure providers (`.env`)
-
-```bash
-# Anthropic for feedback
-ANTHROPIC_API_KEY=sk-ant-...
-ANTHROPIC_MODEL=claude-sonnet-5-5
-
-# OpenAI (or compatible) — enables server STT + TTS, and can also be the LLM
-OPENAI_API_KEY=sk-...
-OPENAI_BASE_URL=https://api.openai.com/v1
-```
-
-`AI_LLM_PROVIDER`, `AI_STT_PROVIDER`, `AI_TTS_PROVIDER` choose defaults (`auto` picks the first configured). Learners can pick among *configured* providers in **Settings**. Keys are read only in server modules (`src/lib/env.ts` imports `server-only`) and never prefixed with `NEXT_PUBLIC_`.
-
----
+| Command | What it does |
+|---|---|
+| `npm run lint` | ESLint (next core-web-vitals + TypeScript) |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | Vitest: engine unit tests, plus integration tests against the local database. Integration tests are **skipped** when the database is not running or not seeded. |
+| `npm run test:e2e` | Playwright against a production server (`npm run build` first; starts `npm start` if nothing is listening on :3000) |
+| `npm run content:check` | Structural validation of every exercise in `src/content` |
+| `npm run build` | Production build |
 
 ## Architecture
 
 ```
 src/
-  app/
-    (public)/            welcome, login, register
-    onboarding/          first-run wizard (name, goal, mic check, recording consent)
-    (app)/               authenticated pages (layout validates the session)
-    api/                 route handlers (auth, conversations, writing, listening, shadowing,
-                         review, lessons, study, ai/stt, ai/tts, recordings, assessment, settings, account)
-  components/
-    audio/               VoiceInput (record → transcribe → review → send), Waveform
-    practice/            ConversationRoom, ListeningExercise, WritingStudio, ShadowingTrainer, ReviewSession
-  content/               30 lessons, roleplays, topic banks, assessment (typed, versioned)
-  lib/
-    ai/                  providers (anthropic, openai, http w/ timeout+retry), prompts, Zod schemas + rubrics, engine
-    feedback/            demo rule engine + rubric heuristics
-    client/              fetch wrapper, audio (MediaRecorder, SpeechRecognition, TTS), study-time tracker
-    srs.ts progress.ts analytics.ts usage.ts rate-limit.ts auth.ts …
-prisma/                  schema, migrations, seed
-tests/unit               Vitest (rules, scoring, SRS, diffing, curriculum integrity, demo engine)
-tests/e2e                Playwright (all pages × desktop/iPad/iPhone, full Day 1 lesson, assessment, offline → sync)
+  app/                 routes: (auth) login/register · onboarding · (app) today, learn, practice,
+                       progress, profile, placement/[lang], session/[id], review, conversation/[id]
+    api/               route handlers: every handler authenticates, validates with zod, runs as the user
+  content/             curriculum as typed data (units, exercises, exams, placement banks, weakness tags)
+  languages/           language modules (en, zh): levels, framework notes, speech locales, tutor notes
+  engine/              pure, tested logic: scoring, placement, planner, SRS, weakness, progression,
+                       schedule, open-task rubric + demo evaluator
+  ai/                  providers, structured JSON generation (zod + one repair pass), teacher prompts
+  server/              services: sessions, placement, curriculum, vocab, weakness, today, tutor, analytics
+  db/                  Drizzle schema (tables + RLS policies) and `asUser()` (per-request RLS)
+supabase/migrations    generated schema + auth trigger, storage bucket and policies
+tests/                 unit/ · integration/ · e2e/
 ```
 
-**AI feedback engine.** Every eligible speaking/writing response yields: original, corrected, more natural version, categorised items with brief explanations, suggested vocabulary, a follow-up exercise and rubric scores (grammar, vocabulary, fluency/clarity/coherence, task completion; bands 1–5). Model output is parsed and validated with Zod; invalid output triggers one automatic repair request, then a clear error. The same rubric text is embedded in every prompt and shown in the UI (“How scores work”). Scores are labelled as estimates — **not certified CEFR or pronunciation assessments**.
+**Security model.**
+- The server talks to Postgres directly, but every learner query runs inside `asUser(userId, …)`. This opens a transaction that switches to the `authenticated` role and sets the verified JWT claims, so RLS (`auth.uid() = user_id`) applies to every read and write.
+- Content tables are read-only for learners.
+- The `anon` role has no table privileges.
+- Recordings live in a private bucket with per-user folder policies.
+- API keys are server-only.
+- Integration tests check that user B cannot read, update, delete or insert user A's rows in **any** user table.
 
-**Audio.** Turn-based and reliable first: permission errors (incl. iOS Settings hint), HTTPS checks, Safari's `audio/mp4` vs Chrome's `audio/webm`, a user-gesture audio unlock for iOS autoplay rules, timeouts, cancellation (`AbortController` end-to-end), retry, and a text-only fallback everywhere. Real-time streaming voice is a deliberate later enhancement.
+**Language modules.** To add a language, add a module in `src/languages/`, its content in `src/content/<id>/`, a placement bank and level exams. The engines are language-agnostic, apart from the normalisation and tokenisation hooks in `engine/scoring.ts`.
 
-**Privacy.** Recordings are stored only after explicit consent (onboarding or Settings), are private to their owner, expire after a configurable retention period, and can be deleted individually or all at once. Withdrawing consent deletes them. Learners can delete transcripts, reset progress, delete their account, or export all data as JSON.
+## Learning engine: rules
 
-**Security & cost.** Server-side sessions (random token, SHA-256-hashed in DB, httpOnly cookie), bcrypt passwords, Zod validation on every input, ownership checks on every record, per-user burst rate limiting, daily request caps and monthly cost budgets (server caps; users can only lower them), security headers, and a microphone-only `Permissions-Policy`.
+- **Placement** (`engine/placement.ts`): estimated separately for each of the 5 skills, and resumable.
+  - Objective skills use a staircase: 2 items per level, plus a third if the first two are split. The test stops when the result is bracketed or after 12 items.
+  - Speaking and writing are estimated from 2 rubric tasks.
+  - Every result shows a confidence level and its limitations, and is labelled as an unofficial app estimate.
+- **Weekly schedule** (`engine/schedule.ts`):
 
-**PWA & offline.** Installable (manifest + icons). **Settings → Offline use** (or the Calendar page) has a *Download for offline* button that pre-caches the open lessons, the practice pages with all 60 listening exercises, flashcards and the mistake-review queue, plus the JS/CSS they need.
+  | Day | Lesson |
+  |---|---|
+  | Sun | English listening + speaking |
+  | Mon | English reading + writing |
+  | Tue | Chinese listening + speaking |
+  | Wed | Chinese reading + writing |
+  | Thu | English listening + speaking |
+  | Fri | English reading + writing |
+  | Sat | English + Chinese vocabulary and review |
 
-Offline you can:
-- open downloaded lessons and practice pages (including in-app navigation);
-- do listening exercises, which are graded **on the device** with the same grader the server uses;
-- review flashcards and mistakes, with mistake corrections checked on the device;
-- keep writing drafts, which are saved locally.
+  - "Today" is computed in the learner's time zone (default Asia/Bangkok).
+  - Missed lessons from the last 7 days are offered as optional make-ups, with no penalty.
+  - Practice never counts as the scheduled lesson.
+  - The schedule can be edited in Profile.
+- **Lesson flow** (`engine/planner.ts`): warm-up → skill blocks → corrections & retry → mini assessment.
+  - Items mix new material, consolidation and current weaknesses.
+  - Writing and speaking blocks always end with a production task.
+  - Lessons autosave, can be paused and resumed, have previous/next navigation, track active time and end with a summary.
+- **Spaced repetition** (`engine/srs.ts`): SM-2 with documented adjustments.
+- **Weaknesses** (`engine/weakness.ts`): a category becomes *active* only after 3 or more mistakes in 21 days, across 2 or more exercises. It moves through watching → active → improving → resolved, based on mastery over recent tagged attempts.
+- **Progression** (`engine/progression.ts`):
+  - A unit test unlocks after at least 4 practice items at 60% or more. The unit test passes at 70%.
+  - A level exam unlocks once all units of the level are complete. To pass, all three must hold:
+    - overall score of at least 80%;
+    - every required section at 70% or more;
+    - the mandatory performance task completed.
+  - A failed exam creates a remediation plan. The required remediation sessions must be completed before a retake.
+- **Scoring**: objective questions are scored deterministically on the server, and answers never reach the client before submission. Open answers are rubric-scored by AI (validated JSON), or by the labelled demo evaluator. Pronunciation is never scored.
 
-This work goes into a local **outbox** (`src/lib/client/outbox.ts`) and syncs automatically when the connection returns. Each item carries a `clientId`, so retries never double-count, and an `occurredAt` time, so streaks and spaced-repetition dates stay correct. After syncing, the lesson steps are re-verified on the server. Speaking, AI feedback, speech recognition and lesson unlocking still need a connection. On iPhone, offline data is kept most reliably when the app is added to the Home Screen.
+## Status report (honest)
 
----
+### Tested end-to-end
+- **Playwright** (mobile Pixel 7 + desktop Chrome, production build, local Supabase):
+  - guest sign-up → onboarding → English placement (one skill answered fully, others skipped) → results labelled unofficial;
+  - Chinese "start from the beginning" → EN and ZH levels stored separately;
+  - practice session with autosave and **resume after a reload** → finish → summary;
+  - progress dashboard;
+  - mobile bottom navigation;
+  - profile preference save, schedule edit and data export;
+  - signed-out redirect and API 401;
+  - Chinese vocabulary practice, review page and EN/ZH progress switch;
+  - no uncaught page errors.
+- **Integration** (real Postgres with the Supabase auth schema):
+  - RLS isolation across all user tables, RLS enabled on every table, `anon` sees nothing, cascade delete;
+  - the signup trigger;
+  - "today" follows the schedule in Asia/Bangkok;
+  - a full scheduled lesson including corrections and summary, and the make-up list updating;
+  - demo evaluation of writing;
+  - SRS review;
+  - unit lock;
+  - unit practice → unit test → next unit;
+  - level exam fail → remediation → retake → pass → advance to A2;
+  - cross-user session access denied;
+  - demo tutor conversation.
+- **Unit**: scoring and normalisation, SRS, weakness rules, adaptive placement (simulated learners), planner, progression and exam rules, schedule and time zones, demo rules (EN/ZH), and content validity (all ~1,400 exercises).
 
-## Scripts
+### Mocked / demo (clearly labelled in the UI)
+- Without API keys, writing, speaking, placement open tasks and the tutor use **rule-based demo feedback**, marked "โหมดเดโม / not AI".
+- Real Anthropic/OpenAI calls, server STT/TTS and AI-generated practice are implemented but **were not exercised in tests**, because no API key was available in the build environment.
+- Browser speech recognition and voices depend on the device. The automated tests used the typing fallback.
 
-| Command | Purpose |
-|---|---|
-| `npm run dev` | Development server |
-| `npm run build` / `npm start` | Production build / server |
-| `npm run typecheck` | TypeScript |
-| `npm run lint` | ESLint |
-| `npm test` | Unit tests (Vitest) |
-| `npm run test:e2e` | Playwright (starts `npm start` on port 3100; run `npm run build` first) |
-| `npm run db:migrate` | Apply migrations |
-| `npm run db:seed` | Create the demo login |
-| `npx tsx scripts/cleanup.ts` | Purge expired recordings/sessions (schedule daily) |
-| `node scripts/generate-icons.mjs` | Re-render PWA PNG icons from `public/icons/icon.svg` |
-
-If Playwright can't download browsers in your environment, point it at an existing Chromium with `CHROMIUM_PATH=/path/to/chrome`.
+### Not implemented yet
+- Curriculum content for **English C2** and **HSK 5–9**. The levels exist in the framework, but the app shows "content coming" for them.
+- Pronunciation or phoneme-level assessment, and real-time voice conversation.
+- Delivery of study reminders. The reminder time is saved, but no notifications are sent.
+- Offline learning. The PWA is installable and shows an offline page, but lessons need a connection.
+- Recording upload has not been covered by an automated test.
 
 ## Deployment
 
-See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for Supabase Cloud + Vercel.

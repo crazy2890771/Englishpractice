@@ -1,19 +1,17 @@
-import Link from "next/link";
 import { WifiOff } from "lucide-react";
+import { LogoMark } from "@/components/app/logo";
 
-export const metadata = { title: "Offline" };
+export const metadata = { title: "ออฟไลน์" };
 
-export default function Offline() {
+export default function OfflinePage() {
   return (
-    <div className="grid min-h-dvh place-items-center px-4">
-      <div className="card max-w-md p-8 text-center">
-        <WifiOff className="mx-auto h-10 w-10 text-muted" aria-hidden />
-        <h1 className="mt-4 text-xl font-bold">You&apos;re offline</h1>
-        <p className="mt-2 text-sm text-muted">
-          Pages you&apos;ve opened before (lessons, notebook, vocabulary) and your saved writing drafts are still available. AI feedback, speech recognition and new voices need an internet connection.
-        </p>
-        <Link href="/dashboard" className="btn-primary mt-6">Try again</Link>
-      </div>
-    </div>
+    <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-4 px-6 text-center">
+      <LogoMark className="size-12" />
+      <WifiOff className="size-6 text-muted-foreground" aria-hidden />
+      <h1 className="text-xl font-semibold">ไม่มีการเชื่อมต่ออินเทอร์เน็ต</h1>
+      <p className="text-sm text-muted-foreground">Fluency Lab ต้องใช้อินเทอร์เน็ตเพื่อบันทึกความคืบหน้าและตรวจคำตอบ เชื่อมต่อแล้วลองใหม่อีกครั้ง — คำตอบที่ส่งแล้วถูกบันทึกไว้ และบทเรียนจะเริ่มต่อจากจุดเดิม</p>
+      <p className="text-xs text-muted-foreground">You&apos;re offline. Reconnect to continue — your lesson resumes where you left off.</p>
+      <a href="/today" className="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">ลองใหม่ · Retry</a>
+    </main>
   );
 }

@@ -1,19 +1,12 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { ApiError, withUser } from "@/lib/api";
+import { and, eq } from "drizzle-orm";
+import { asUser, schema } from "@/db";
+import { route, HttpError } from "@/server/http";
+import { supabaseServer } from "@/lib/supabase/server";
 
-/** Streams a recording back to its owner only. */
-export const GET = withUser<{ id: string }>(async (_req, user, { params }) => {
+export const DELETE = route<{ id: string }>(async (_req, learner, { params }) => {
   const { id } = await params;
-  const rec = await db.recording.findFirst({ where: { id, userId: user.id, expiresAt: { gte: new Date() } } });
-  if (!rec) throw new ApiError(404, "Recording not found.");
-  return new Response(Buffer.from(rec.data), {
-    headers: { "content-type": rec.mimeType, "cache-control": "private, no-store", "content-length": String(rec.sizeBytes) },
-  });
-});
-
-export const DELETE = withUser<{ id: string }>(async (_req, user, { params }) => {
-  const { id } = await params;
-  await db.recording.deleteMany({ where: { id, userId: user.id } });
-  return NextResponse.json({ ok: true });
+  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new HttpError(404, "not_found");
+  const rows = await asUser(learner.id, (tx) => tx.delete(schema.recordings).where(and(eq(schema.recordings.id, id), eq(schema.recordings.userId, learner.id))).returning());
+  if (rows[0]) await (await supabaseServer()).storage.from("recordings").remove([rows[0].storagePath]);
+  return { ok: true };
 });

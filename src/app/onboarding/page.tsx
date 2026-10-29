@@ -1,13 +1,11 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
-import { Onboarding } from "./onboarding";
+import { getLearner } from "@/server/learner";
+import { Onboarding } from "./wizard";
 
-export const metadata = { title: "Get started" };
-export const dynamic = "force-dynamic";
+export const metadata = { title: "เริ่มต้น" };
 
 export default async function OnboardingPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/welcome");
-  if (user.onboarded) redirect("/dashboard");
-  return <Onboarding name={user.isDemo ? "" : user.name} />;
+  const learner = await getLearner();
+  if (learner.profile.onboarded) redirect("/today");
+  return <Onboarding defaultName={learner.profile.displayName} />;
 }

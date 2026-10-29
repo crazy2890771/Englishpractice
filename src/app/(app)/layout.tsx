@@ -1,33 +1,29 @@
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth";
-import { resolveProviders } from "@/lib/ai/config";
-import { AppConfigProvider } from "@/components/providers";
-import { AppShell } from "@/components/layout/app-shell";
-import { ThemeSync } from "@/components/theme-sync";
-
-export const dynamic = "force-dynamic";
+import { getLearner } from "@/server/learner";
+import { resolveProvider, serverSpeechAvailable } from "@/ai/providers";
+import { UiProvider } from "@/components/app/ui-context";
+import { AppShell } from "@/components/app/shell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireUser();
-  if (!user.onboarded) redirect("/onboarding");
-  const s = user.settings;
-  const providers = resolveProviders(s);
+  const learner = await getLearner();
+  if (!learner.profile.onboarded) redirect("/onboarding");
+  const p = learner.profile;
   return (
-    <AppConfigProvider
+    <UiProvider
       value={{
-        user: { id: user.id, name: user.name, level: user.level, isDemo: user.isDemo, email: user.email },
-        settings: {
-          theme: s?.theme ?? "dark",
-          speechRate: s?.speechRate ?? 1,
-          accent: s?.accent ?? "US",
-          saveRecordings: s?.saveRecordings ?? false,
-          interruptionFree: s?.interruptionFree ?? false,
-        },
-        providers,
+        uiLang: p.uiLanguage === "en" ? "en" : "th",
+        explanationLang: p.explanationLanguage === "en" ? "en" : "th",
+        showPinyin: p.showPinyin,
+        playbackSpeed: p.playbackSpeed,
+        correctionMode: p.correctionMode,
+        ttsServer: serverSpeechAvailable(),
+        sttServer: serverSpeechAvailable(),
+        aiMode: resolveProvider(p.aiProvider) ? "live" : "demo",
+        saveRecordings: p.saveRecordings,
+        userId: learner.id,
       }}
     >
-      <ThemeSync theme={s?.theme ?? "dark"} />
       <AppShell>{children}</AppShell>
-    </AppConfigProvider>
+    </UiProvider>
   );
 }

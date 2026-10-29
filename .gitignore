@@ -8,4 +8,6 @@ next-env.d.ts
 playwright-report
 test-results
 coverage
+supabase/.branches
+supabase/.temp
 .DS_Store
